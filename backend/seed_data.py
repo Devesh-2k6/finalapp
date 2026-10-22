@@ -65,13 +65,13 @@ def ensure_demo_accounts() -> None:
 
 
 def ensure_ecosystem_ready() -> None:
-    """Ensures platform Admin account is ready with zero demo data."""
-    ensure_admin_account()
+    """Ensures platform database is initialized with zero forced demo/admin accounts."""
     init_db()
     db = SessionLocal()
     try:
+        total_users = db.query(User).count()
         active_shops = db.query(Shop).filter(Shop.is_active == True, Shop.approval_status == "APPROVED").count()
-        print(f"[OK] Ecosystem ready (Active approved stores: {active_shops}).")
+        print(f"[OK] Ecosystem ready (Total users: {total_users}, Active approved stores: {active_shops}).")
     finally:
         db.close()
 

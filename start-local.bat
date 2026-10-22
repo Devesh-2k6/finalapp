@@ -4,8 +4,8 @@ echo ============================================================
 echo   🚀 MEEVA - ONE-CLICK LOCAL LAUNCHER
 echo ============================================================
 echo.
-echo [1/3] Initializing Database & Administrator...
-python -c "import sys; sys.path.insert(0, 'backend'); from seed_data import ensure_admin_account; ensure_admin_account()"
+echo [1/3] Initializing Database (Zero Accounts / Real Testing)...
+python -c "import sys; sys.path.insert(0, 'backend'); from seed_data import ensure_ecosystem_ready; ensure_ecosystem_ready()"
 echo.
 echo [2/3] Starting Backend API Server (http://0.0.0.0:8000)...
 start "Meeva Backend API" cmd /k "cd backend && python run_server.py"

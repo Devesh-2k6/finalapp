@@ -81,11 +81,11 @@ def main():
     print("  • Products in DB:  0 (Ready for real merchant listings)")
     print("=" * 70)
 
-    # Step 1: Ensure Platform Admin
-    print("\n[1/4] Ensuring Platform Administrator account...")
+    # Step 1: Ensure Database Schema Ready
+    print("\n[1/4] Ensuring Database Schema Ready (Zero Accounts / Real Testing)...")
     try:
         subprocess.run(
-            [sys.executable, "-c", "import sys; sys.path.insert(0, 'backend'); from seed_data import ensure_admin_account; ensure_admin_account()"],
+            [sys.executable, "-c", "import sys; sys.path.insert(0, 'backend'); from seed_data import ensure_ecosystem_ready; ensure_ecosystem_ready()"],
             cwd=str(ROOT_DIR),
             check=False
         )

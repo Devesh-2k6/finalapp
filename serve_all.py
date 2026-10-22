@@ -79,11 +79,11 @@ def main():
     print(f"  • API Swagger:     http://localhost:8000/docs")
     print("=" * 65 + "\n")
 
-    # Step 1: Ensure Admin & Database
-    print("[1/3] Initializing Database & Administrator Account...")
+    # Step 1: Ensure Database Ready (Zero Accounts for Real Testing)
+    print("[1/3] Initializing Database (Zero Accounts / Real Testing)...")
     try:
         subprocess.run(
-            [sys.executable, "-c", "import sys; sys.path.insert(0, 'backend'); from seed_data import ensure_admin_account; ensure_admin_account()"],
+            [sys.executable, "-c", "import sys; sys.path.insert(0, 'backend'); from seed_data import ensure_ecosystem_ready; ensure_ecosystem_ready()"],
             cwd=str(ROOT_DIR),
             check=False
         )

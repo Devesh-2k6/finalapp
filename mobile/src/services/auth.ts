@@ -168,6 +168,35 @@ export async function resetPassword(data: ResetPasswordInput): Promise<ResetPass
   });
 }
 
+export type GoogleAuthInput = {
+  id_token?: string;
+  credential?: string;
+  email?: string;
+  name?: string;
+  picture?: string;
+  role?: "CUSTOMER" | "VENDOR" | "ADMIN" | string;
+  shop_name?: string;
+  category?: string;
+  phone_number?: string;
+  upi_id?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  photo_url?: string;
+  document_url?: string;
+};
+
+export type GoogleAuthResponse = AuthResponse;
+
+export async function googleAuth(data: GoogleAuthInput): Promise<AuthResponse> {
+  return apiRequest<AuthResponse>("/auth/google", {
+    method: "POST",
+    json: data,
+    skipAuth: true,
+  });
+}
+
+
 
 
 

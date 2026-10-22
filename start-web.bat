@@ -19,9 +19,9 @@ echo   • Backend API:     http://localhost:8000
 echo   • API Swagger:     http://localhost:8000/docs
 echo.
 
-:: 2. Initialize Database and Seed Admin User
-echo [1/3] Ensuring Backend Database & Administrator Account...
-python -c "import sys; sys.path.insert(0, 'backend'); from seed_data import ensure_admin_account; ensure_admin_account()"
+:: 2. Initialize Database for Real Testing
+echo [1/3] Ensuring Backend Database Ready (Zero Accounts)...
+python -c "import sys; sys.path.insert(0, 'backend'); from seed_data import ensure_ecosystem_ready; ensure_ecosystem_ready()"
 echo.
 
 :: 3. Start Backend FastAPI Server

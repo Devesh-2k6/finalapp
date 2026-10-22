@@ -62,6 +62,7 @@ import {
   CURRENT_LAN_IP,
 } from "../../config/env";
 import { MobileLocationPicker } from "../../components/MobileLocationPicker";
+import { GoogleSignInButton } from "../../components/GoogleSignInButton";
 
 interface AuthScreenProps {
   navigation?: any;
@@ -73,6 +74,14 @@ type RoleMode = "customer" | "vendor" | "admin";
 
 export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) => {
   const { login: authLogin, loginWithSession } = useAuth();
+
+  const handleGoogleSuccess = async (res: any) => {
+    try {
+      await loginWithSession(res, roleMode === "vendor" ? "shop" : "customer");
+    } catch (err: any) {
+      setError(err?.message || "Failed to establish session");
+    }
+  };
 
   const initialTab: TabType = route?.params?.tab === "signup" ? "signup" : route?.params?.tab === "forgot" ? "forgot_password" : "login";
   const [tab, setTab] = useState<TabType>(initialTab);
@@ -600,7 +609,7 @@ export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) =>
               <Zap size={22} color="#FFFFFF" fill="#FFFFFF" />
             </View>
             <Text style={styles.brandTitle}>
-              Mee<Text style={{ color: Colors.primaryBright }}>va</Text>
+              Expiry<Text style={{ color: Colors.primaryBright }}>Go</Text>
             </Text>
             <Text style={styles.brandSubtitle}>
               {tab === "signup"
@@ -866,6 +875,24 @@ export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) =>
                   </TouchableOpacity>
                 </View>
               )}
+
+              {/* Social Login Divider & Google Button */}
+              {roleMode !== "admin" && (
+                <>
+                  <View style={styles.orDividerContainer}>
+                    <View style={styles.orDividerLine} />
+                    <Text style={styles.orDividerText}>OR CONTINUE WITH</Text>
+                    <View style={styles.orDividerLine} />
+                  </View>
+
+                  <GoogleSignInButton
+                    mode="signin"
+                    role={roleMode === "vendor" ? "vendor" : "customer"}
+                    onSuccess={handleGoogleSuccess}
+                    onError={(err) => setError(err)}
+                  />
+                </>
+              )}
             </View>
           )}
 
@@ -961,6 +988,20 @@ export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) =>
                       </>
                     )}
                   </TouchableOpacity>
+
+                  {/* Social Sign Up Divider & Google Button */}
+                  <View style={styles.orDividerContainer}>
+                    <View style={styles.orDividerLine} />
+                    <Text style={styles.orDividerText}>OR SIGN UP WITH</Text>
+                    <View style={styles.orDividerLine} />
+                  </View>
+
+                  <GoogleSignInButton
+                    mode="signup"
+                    role="customer"
+                    onSuccess={handleGoogleSuccess}
+                    onError={(err) => setError(err)}
+                  />
                 </View>
               ) : (
                 /* Vendor Mode */
@@ -1156,6 +1197,20 @@ export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) =>
                       </>
                     )}
                   </TouchableOpacity>
+
+                  {/* Social Sign Up Divider & Google Button for Vendor */}
+                  <View style={styles.orDividerContainer}>
+                    <View style={styles.orDividerLine} />
+                    <Text style={styles.orDividerText}>OR REGISTER STORE WITH</Text>
+                    <View style={styles.orDividerLine} />
+                  </View>
+
+                  <GoogleSignInButton
+                    mode="signup"
+                    role="vendor"
+                    onSuccess={handleGoogleSuccess}
+                    onError={(err) => setError(err)}
+                  />
                 </View>
               )}
             </View>
@@ -2003,5 +2058,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
     color: "#FFFFFF",
+  },
+  orDividerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 14,
+  },
+  orDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.cardBorder,
+  },
+  orDividerText: {
+    paddingHorizontal: 12,
+    fontSize: 10,
+    fontWeight: "700",
+    color: Colors.textMuted,
+    letterSpacing: 1,
   },
 });

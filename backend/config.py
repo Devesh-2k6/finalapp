@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = Field(default=None)
     GEMINI_API_KEY: Optional[str] = Field(default=None)
     GOOGLE_MAPS_PLATFORM_KEY: Optional[str] = Field(default=None)
+    GOOGLE_CLIENT_ID: Optional[str] = Field(default=None)
     FAST2SMS_API_KEY: Optional[str] = Field(default=None)
     REDIS_URL: str = Field(default="redis://localhost:6379")
     

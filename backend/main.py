@@ -41,11 +41,13 @@ async def lifespan(_app: FastAPI):
     init_db()
     elapsed = time.perf_counter() - start
     logger.info(f"Backend database initialized in {elapsed:.3f} seconds.")
-    try:
-        from seed_data import ensure_admin_account
-        ensure_admin_account()
-    except Exception as e:
-        logger.warning(f"Could not ensure administrator account: {e}")
+    # Clean state: Do not auto-seed admin account unless explicitly requested via environment variable
+    if os.getenv("AUTO_SEED_ADMIN", "false").lower() == "true":
+        try:
+            from seed_data import ensure_admin_account
+            ensure_admin_account()
+        except Exception as e:
+            logger.warning(f"Could not ensure administrator account: {e}")
     
     # Detect if running under tests
     is_testing = "pytest" in sys.modules or os.getenv("TESTING") == "True"

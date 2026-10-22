@@ -40,9 +40,8 @@ import {
   getDevMailbox,
   forgotPassword,
   resetPassword,
-  googleAuth,
-  type GoogleAuthInput,
 } from "@/services/auth";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 const InteractiveLocationPicker = dynamic(() => import("@/components/InteractiveLocationPicker"), {
   ssr: false,
@@ -58,30 +57,6 @@ const InteractiveLocationPicker = dynamic(() => import("@/components/Interactive
 
 type Tab = "login" | "signup" | "otp" | "forgot_password";
 type RoleMode = "customer" | "vendor" | "admin";
-
-function GoogleIcon({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" width="20" height="20">
-      <path
-        fill="#4285F4"
-        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-      />
-      <path
-        fill="#34A853"
-        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-      />
-      <path
-        fill="#EA4335"
-        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-      />
-    </svg>
-  );
-}
-
 
 
 export default function AuthPage() {
@@ -179,61 +154,7 @@ export default function AuthPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Google Authentication States (Strict Production OAuth)
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [googleCustomClientId, setGoogleCustomClientId] = useState("");
-  const [showClientIdConfig, setShowClientIdConfig] = useState(false);
-  const [googleConnectedAccount, setGoogleConnectedAccount] = useState<{ email: string; name: string; credential: string } | null>(null);
 
-  // Initialize official Google Identity Services (One Tap & OAuth 2.0)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const savedClientId = localStorage.getItem("EXPIRYGO_GOOGLE_CLIENT_ID") || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
-    if (savedClientId) {
-      setGoogleCustomClientId(savedClientId);
-    }
-
-    const initGsi = () => {
-      if (!(window as any).google?.accounts?.id || !savedClientId) return;
-      try {
-        (window as any).google.accounts.id.initialize({
-          client_id: savedClientId,
-          callback: (response: any) => {
-            if (!response?.credential) return;
-            try {
-              const base64Url = response.credential.split(".")[1];
-              const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-              const jsonPayload = decodeURIComponent(
-                atob(base64)
-                  .split("")
-                  .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-                  .join("")
-              );
-              const payload = JSON.parse(jsonPayload);
-              handleGoogleSignIn(response.credential, payload.email, payload.name, payload.picture);
-            } catch {
-              handleGoogleSignIn(response.credential);
-            }
-          },
-        });
-        (window as any).google.accounts.id.prompt();
-      } catch (e) {
-        console.warn("Google One Tap auto prompt notice:", e);
-      }
-    };
-
-    if (!(window as any).google?.accounts?.id) {
-      const script = document.createElement("script");
-      script.src = "https://accounts.google.com/gsi/client";
-      script.async = true;
-      script.defer = true;
-      script.onload = initGsi;
-      document.body.appendChild(script);
-    } else {
-      initGsi();
-    }
-  }, []);
 
   useEffect(() => {
     if (otpCooldown <= 0) return;
@@ -324,144 +245,6 @@ export default function AuthPage() {
     }
   };
 
-  const handleGoogleSignInClick = async () => {
-    // Admin accounts must authenticate with admin credentials and password
-    if (roleMode === "admin") {
-      setError("Administrator accounts must authenticate using administrator email and password.");
-      return;
-    }
-
-    // 1. If Google OAuth Client ID is configured, trigger Google's native popup
-    const activeClientId =
-      googleCustomClientId ||
-      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
-      (typeof window !== "undefined" ? localStorage.getItem("EXPIRYGO_GOOGLE_CLIENT_ID") : null);
-
-    if (activeClientId && typeof window !== "undefined" && (window as any).google?.accounts?.oauth2) {
-      try {
-        setGoogleLoading(true);
-        const tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
-          client_id: activeClientId,
-          scope: "email profile openid",
-          callback: async (tokenResponse: any) => {
-            if (tokenResponse?.error) {
-              setError(tokenResponse.error_description || "Google authorization was cancelled.");
-              setGoogleLoading(false);
-              return;
-            }
-            if (tokenResponse?.access_token) {
-              try {
-                const infoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-                  headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-                });
-                const googleProfile = await infoRes.json();
-                if (googleProfile?.email) {
-                  await handleGoogleSignIn(tokenResponse.access_token, googleProfile.email, googleProfile.name, googleProfile.picture);
-                  return;
-                }
-              } catch (err) {
-                setError("Could not retrieve Google profile.");
-              } finally {
-                setGoogleLoading(false);
-              }
-            }
-          },
-        });
-        tokenClient.requestAccessToken({ prompt: "select_account" });
-        return;
-      } catch (err) {
-        console.warn("Google OAuth client trigger:", err);
-        setGoogleLoading(false);
-      }
-    }
-
-    // STRICT PRODUCTION GUARD: No fake email bypasses allowed
-    setError("Google One-Click Sign In requires configuring NEXT_PUBLIC_GOOGLE_CLIENT_ID. Please sign in using your verified Email & Password below, or configure your Google Client ID.");
-    setShowClientIdConfig(true);
-  };
-
-  const handleGoogleSignIn = async (
-    credentialToken: string,
-    targetEmail?: string,
-    targetName?: string,
-    targetPicture?: string
-  ) => {
-    if (!credentialToken || !credentialToken.trim()) {
-      setError("Google authentication requires a verified Google OAuth token.");
-      return;
-    }
-
-    const email = (targetEmail || (googleConnectedAccount ? googleConnectedAccount.email : "")).trim().toLowerCase();
-    const name = targetName || (googleConnectedAccount?.name) || (email ? email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()) : "User");
-
-    // For Vendor Sign Up: if merchant details not yet filled, connect the verified Google identity
-    if (tab === "signup" && roleMode === "vendor" && !googleConnectedAccount && !vendorShopName.trim()) {
-      setGoogleConnectedAccount({ email, name, credential: credentialToken });
-      setVendorEmail(email);
-      setCustomerName(name);
-      return;
-    }
-
-    setGoogleLoading(true);
-    setError("");
-
-    try {
-      const payload: GoogleAuthInput = {
-        email,
-        name,
-        picture: targetPicture,
-        credential: credentialToken,
-        role: roleMode === "vendor" ? "VENDOR" : "CUSTOMER",
-      };
-
-      if (tab === "signup" && roleMode === "vendor") {
-        if (!vendorShopName.trim()) {
-          setError("Please enter your Store Name to register as Merchant.");
-          setGoogleLoading(false);
-          return;
-        }
-        if (!vendorPhone.trim()) {
-          setError("Please enter your 10-digit mobile number.");
-          setGoogleLoading(false);
-          return;
-        }
-        if (!vendorPhotoUrl) {
-          setError("Please upload your storefront photo.");
-          setGoogleLoading(false);
-          return;
-        }
-        if (!vendorDocUrl) {
-          setError("Please upload your business registration document.");
-          setGoogleLoading(false);
-          return;
-        }
-        payload.shop_name = vendorShopName.trim();
-        payload.category = vendorCategory;
-        payload.phone_number = vendorPhone.trim();
-        payload.upi_id = vendorUpiId.trim() || undefined;
-        payload.address = vendorAddress.trim() || undefined;
-        payload.latitude = vendorLat;
-        payload.longitude = vendorLng;
-        payload.photo_url = vendorPhotoUrl;
-        payload.document_url = vendorDocUrl;
-      }
-
-      const res = await googleAuth(payload);
-      loginUser(res.user, res.access_token);
-
-      if (res.user.role === "ADMIN") {
-        router.replace("/admin");
-      } else if (res.user.role === "VENDOR" || res.user.is_shop_owner) {
-        router.replace("/shop");
-      } else {
-        router.replace("/deals");
-      }
-    } catch (err: unknown) {
-      setError(getErrorMessage(err) || "Google authentication failed. Please sign in with email and password.");
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
 
   const handleSendOtp = async (targetId?: string) => {
     const idToSend = (targetId || otpIdentifier || loginEmail).trim();
@@ -571,32 +354,6 @@ export default function AuthPage() {
           text: `6-digit verification code sent to ${cleanEmail}. Please check your email inbox.`,
         });
       } else {
-        // If Vendor is registering with Google Authentication (Zero Password / Zero OTP)
-        if (googleConnectedAccount) {
-          if (!vendorShopName.trim()) {
-            setError("Please enter your Store Name to complete registration.");
-            setSubmitting(false);
-            return;
-          }
-          if (!vendorPhone.trim()) {
-            setError("Please enter your 10-digit mobile phone number.");
-            setSubmitting(false);
-            return;
-          }
-          if (!vendorPhotoUrl) {
-            setError("Please upload your storefront photo before completing registration.");
-            setSubmitting(false);
-            return;
-          }
-          if (!vendorDocUrl) {
-            setError("Please upload your business verification document (FSSAI/GST/Trade license).");
-            setSubmitting(false);
-            return;
-          }
-          await handleGoogleSignIn(googleConnectedAccount.credential, googleConnectedAccount.email, googleConnectedAccount.name);
-          return;
-        }
-
         // Standard Email & Password Vendor Signup with required document validation
         if (vendorPassword && vendorPassword.length < 6) {
           setError("Password must be at least 6 characters long.");
@@ -814,7 +571,7 @@ export default function AuthPage() {
               <Leaf size={24} />
             </div>
             <span className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-              Mee<span className="text-purple-600">va</span>
+              Expiry<span className="text-purple-600">Go</span>
             </span>
           </Link>
           <p className="text-xs font-semibold text-slate-500 dark:text-gray-400">
@@ -943,103 +700,7 @@ export default function AuthPage() {
           </div>
         )}
 
-        {/* Google 1-Click Fast Authentication */}
-        {tab !== "otp" && tab !== "forgot_password" && (
-          <div className="space-y-3 pt-1">
-            {roleMode === "vendor" && tab === "signup" && googleConnectedAccount ? (
-              <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow-sm">
-                    {googleConnectedAccount.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-xs font-bold text-slate-900 dark:text-white">
-                        {googleConnectedAccount.name}
-                      </p>
-                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300">
-                        Google Verified
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-gray-400">
-                      {googleConnectedAccount.email}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setGoogleConnectedAccount(null)}
-                  className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-white font-medium cursor-pointer"
-                >
-                  Change
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => handleGoogleSignInClick()}
-                disabled={googleLoading || submitting}
-                className="w-full py-3.5 px-4 bg-white dark:bg-gray-800 hover:bg-slate-50 dark:hover:bg-gray-750 text-slate-800 dark:text-white border-2 border-slate-200/90 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-600 rounded-2xl font-bold text-sm shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-3 cursor-pointer group disabled:opacity-50"
-              >
-                {googleLoading ? (
-                  <Loader2 size={18} className="animate-spin text-purple-600" />
-                ) : (
-                  <GoogleIcon className="w-5 h-5 shrink-0 group-hover:scale-105 transition-transform" />
-                )}
-                <span>
-                  {roleMode === "admin"
-                    ? "Continue as Admin with Google"
-                    : roleMode === "vendor"
-                    ? (tab === "signup" ? "Verify Merchant with Google" : "Continue with Google as Merchant")
-                    : "Continue with Google"}
-                </span>
-              </button>
-            )}
 
-            {/* Official Google OAuth Setup Toggle */}
-            <div className="flex items-center justify-between px-1 text-[11px] text-slate-400">
-              <span className="flex items-center gap-1 font-medium text-slate-500 dark:text-gray-400">
-                <ShieldCheck size={12} className="text-purple-600" /> Official Google OAuth 2.0
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowClientIdConfig(!showClientIdConfig)}
-                className="hover:underline hover:text-purple-600 dark:hover:text-purple-400 font-medium cursor-pointer"
-              >
-                {showClientIdConfig ? "Hide Client ID" : "Configure Client ID"}
-              </button>
-            </div>
-
-            {showClientIdConfig && (
-              <div className="p-3 bg-purple-50/60 dark:bg-purple-950/30 border border-purple-200/70 dark:border-purple-800/50 rounded-2xl space-y-2 text-left animate-in fade-in duration-150">
-                <p className="text-[11px] text-slate-600 dark:text-gray-300">
-                  Google One-Click Sign In uses official Google OAuth. Enter your Google Cloud Client ID below or configure <code className="px-1 py-0.5 bg-purple-100 dark:bg-purple-900 rounded font-mono text-[10px]">NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> in <code className="px-1 py-0.5 bg-purple-100 dark:bg-purple-900 rounded font-mono text-[10px]">.env</code>:
-                </p>
-                <input
-                  type="text"
-                  placeholder="xxxxxxxxxxxx.apps.googleusercontent.com"
-                  value={googleCustomClientId}
-                  onChange={(e) => {
-                    setGoogleCustomClientId(e.target.value);
-                    if (typeof window !== "undefined") {
-                      localStorage.setItem("EXPIRYGO_GOOGLE_CLIENT_ID", e.target.value.trim());
-                    }
-                  }}
-                  className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-purple-200 dark:border-gray-700 rounded-xl text-xs outline-none focus:border-purple-500 text-slate-900 dark:text-white"
-                />
-              </div>
-            )}
-
-            {/* Subtle Divider */}
-            <div className="relative flex py-1 items-center">
-              <div className="flex-grow border-t border-slate-200/80 dark:border-gray-800"></div>
-              <span className="flex-shrink mx-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                or continue with credentials
-              </span>
-              <div className="flex-grow border-t border-slate-200/80 dark:border-gray-800"></div>
-            </div>
-          </div>
-        )}
 
         {/* TAB: FORGOT PASSWORD FLOW */}
         {tab === "forgot_password" && (
@@ -1445,29 +1106,17 @@ export default function AuthPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-gray-400">
-                      Vendor Email Address
-                    </label>
-                    {googleConnectedAccount && (
-                      <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                        <CheckCircle2 size={12} /> Google Verified
-                      </span>
-                    )}
-                  </div>
+                  <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-gray-400 mb-1.5">
+                    Vendor Email Address
+                  </label>
                   <input
                     type="email"
                     name="vendor_email_field"
                     autoComplete="off"
                     required
-                    readOnly={!!googleConnectedAccount}
                     value={vendorEmail}
                     onChange={(e) => setVendorEmail(e.target.value)}
-                    className={`w-full rounded-2xl border ${
-                      googleConnectedAccount
-                        ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-950/20 text-emerald-900 dark:text-emerald-200 cursor-not-allowed"
-                        : "border-purple-200 dark:border-gray-700 bg-white/90 dark:bg-gray-950 text-slate-900 dark:text-white"
-                    } px-4 py-3 outline-none focus:border-purple-500 text-sm font-medium`}
+                    className="w-full rounded-2xl border border-purple-200 dark:border-gray-700 bg-white/90 dark:bg-gray-950 text-slate-900 dark:text-white px-4 py-3 outline-none focus:border-purple-500 text-sm font-medium"
                     placeholder="vendor@example.com"
                   />
                 </div>
@@ -1504,69 +1153,50 @@ export default function AuthPage() {
                   />
                 </div>
 
-                {!googleConnectedAccount ? (
-                  <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-gray-400 mb-1.5">
-                          Create Login Password <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type={showSignupPassword ? "text" : "password"}
-                          name="vendor_pass_field"
-                          autoComplete="new-password"
-                          required
-                          minLength={6}
-                          value={vendorPassword}
-                          onChange={(e) => setVendorPassword(e.target.value)}
-                          className="w-full rounded-2xl border border-purple-200 dark:border-gray-700 bg-white/90 dark:bg-gray-950 text-slate-900 dark:text-white px-4 py-3 outline-none focus:border-purple-500 text-sm font-medium"
-                          placeholder="Min 6 characters"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-gray-400 mb-1.5">
-                          Confirm Password <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type={showSignupPassword ? "text" : "password"}
-                          name="vendor_confirm_pass_field"
-                          autoComplete="new-password"
-                          required
-                          minLength={6}
-                          value={vendorConfirmPassword}
-                          onChange={(e) => setVendorConfirmPassword(e.target.value)}
-                          className="w-full rounded-2xl border border-purple-200 dark:border-gray-700 bg-white/90 dark:bg-gray-950 text-slate-900 dark:text-white px-4 py-3 outline-none focus:border-purple-500 text-sm font-medium"
-                          placeholder="Repeat password"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                      <input
-                        type="checkbox"
-                        id="showVendPass"
-                        checked={showSignupPassword}
-                        onChange={(e) => setShowSignupPassword(e.target.checked)}
-                        className="accent-purple-600 rounded"
-                      />
-                      <label htmlFor="showVendPass" className="cursor-pointer">Show password text</label>
-                    </div>
-                  </>
-                ) : (
-                  <div className="p-3.5 bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl flex items-center gap-3">
-                    <ShieldCheck className="text-emerald-600 dark:text-emerald-400 shrink-0" size={24} />
-                    <div className="text-xs">
-                      <p className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                        Google OAuth Verified Identity
-                        <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300">
-                          OAuth 2.0
-                        </span>
-                      </p>
-                      <p className="text-slate-500 dark:text-gray-400 mt-0.5">
-                        Your merchant identity is verified with Google via {googleConnectedAccount.email}. Complete your storefront details below to finish registration.
-                      </p>
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-gray-400 mb-1.5">
+                      Create Login Password <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type={showSignupPassword ? "text" : "password"}
+                      name="vendor_pass_field"
+                      autoComplete="new-password"
+                      required
+                      minLength={6}
+                      value={vendorPassword}
+                      onChange={(e) => setVendorPassword(e.target.value)}
+                      className="w-full rounded-2xl border border-purple-200 dark:border-gray-700 bg-white/90 dark:bg-gray-950 text-slate-900 dark:text-white px-4 py-3 outline-none focus:border-purple-500 text-sm font-medium"
+                      placeholder="Min 6 characters"
+                    />
                   </div>
-                )}
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-gray-400 mb-1.5">
+                      Confirm Password <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type={showSignupPassword ? "text" : "password"}
+                      name="vendor_confirm_pass_field"
+                      autoComplete="new-password"
+                      required
+                      minLength={6}
+                      value={vendorConfirmPassword}
+                      onChange={(e) => setVendorConfirmPassword(e.target.value)}
+                      className="w-full rounded-2xl border border-purple-200 dark:border-gray-700 bg-white/90 dark:bg-gray-950 text-slate-900 dark:text-white px-4 py-3 outline-none focus:border-purple-500 text-sm font-medium"
+                      placeholder="Repeat password"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <input
+                    type="checkbox"
+                    id="showVendPass"
+                    checked={showSignupPassword}
+                    onChange={(e) => setShowSignupPassword(e.target.checked)}
+                    className="accent-purple-600 rounded"
+                  />
+                  <label htmlFor="showVendPass" className="cursor-pointer">Show password text</label>
+                </div>
 
                 {/* Upload Shop Photo */}
                 <div>
@@ -1622,22 +1252,54 @@ export default function AuthPage() {
 
             <button
               type="submit"
-              disabled={submitting || googleLoading || uploadingPhoto || uploadingDoc}
+              disabled={submitting || uploadingPhoto || uploadingDoc}
               className="w-full text-white font-black py-4 rounded-2xl transition shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer text-sm bg-gradient-to-r from-purple-600 via-indigo-600 to-violet-700 hover:from-purple-500 hover:to-indigo-500 shadow-purple-600/25 hover:shadow-purple-600/40"
             >
-              {submitting || googleLoading ? (
+              {submitting ? (
                 <Loader2 size={18} className="animate-spin" />
-              ) : googleConnectedAccount ? (
-                <GoogleIcon className="w-5 h-5 brightness-200" />
               ) : (
                 <Zap size={18} />
               )}
               {roleMode === "customer"
                 ? "Continue with OTP Verification"
-                : googleConnectedAccount
-                ? "Register Store with Google (1-Click Instant)"
                 : "Register Store & Verify OTP"}
             </button>
+
+            {/* Social Authentication: Google Sign Up */}
+            {roleMode !== "admin" && (
+              <div className="space-y-3 pt-2">
+                <div className="relative my-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-200 dark:border-gray-800" />
+                  </div>
+                  <div className="relative flex justify-center text-[11px] uppercase font-extrabold tracking-wider">
+                    <span className="bg-white dark:bg-gray-900 px-3 text-slate-400 dark:text-gray-500">
+                      Or sign up with
+                    </span>
+                  </div>
+                </div>
+
+                <GoogleSignInButton
+                  mode="signup"
+                  role={roleMode === "vendor" ? "vendor" : "customer"}
+                  vendorMetadata={
+                    roleMode === "vendor"
+                      ? {
+                          shop_name: vendorShopName,
+                          category: vendorCategory,
+                          phone_number: vendorPhone,
+                          upi_id: vendorUpiId,
+                          address: vendorAddress,
+                          latitude: vendorLat,
+                          longitude: vendorLng,
+                          photo_url: vendorPhotoUrl,
+                          document_url: vendorDocUrl,
+                        }
+                      : undefined
+                  }
+                />
+              </div>
+            )}
           </form>
         )}
 
@@ -1799,6 +1461,27 @@ export default function AuthPage() {
                   Send 6-Digit Login Code
                 </button>
               </form>
+            )}
+
+            {/* Social Authentication: Google Sign In */}
+            {roleMode !== "admin" && (
+              <div className="space-y-3 pt-2">
+                <div className="relative my-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-200 dark:border-gray-800" />
+                  </div>
+                  <div className="relative flex justify-center text-[11px] uppercase font-extrabold tracking-wider">
+                    <span className="bg-white dark:bg-gray-900 px-3 text-slate-400 dark:text-gray-500">
+                      Or continue with
+                    </span>
+                  </div>
+                </div>
+
+                <GoogleSignInButton
+                  mode="login"
+                  role={roleMode === "vendor" ? "vendor" : "customer"}
+                />
+              </div>
             )}
           </div>
         )}

@@ -56,7 +56,7 @@ export type VendorSignupInput = {
 };
 
 export type GoogleAuthInput = {
-  email: string;
+  email?: string;
   name?: string;
   picture?: string;
   role?: "CUSTOMER" | "VENDOR" | "ADMIN" | string;

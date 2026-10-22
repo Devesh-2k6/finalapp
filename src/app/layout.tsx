@@ -38,7 +38,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#7C3AED" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover" />
         <meta httpEquiv="Permissions-Policy" content="camera=*, geolocation=*, microphone=*, clipboard-read=*, clipboard-write=*, display-capture=*" />
-        {/* Google Identity Services for 1-Click Google Sign In (Same as App Emergent) */}
+        {/* Official Google Identity Services SDK for native Account Chooser popup (like Zomato) */}
         <script src="https://accounts.google.com/gsi/client" async defer></script>
       </head>
       <body className={`${inter.className} min-h-screen bg-[#FAFAFE] text-slate-900 selection:bg-purple-500/25 overflow-x-hidden relative`} suppressHydrationWarning>
