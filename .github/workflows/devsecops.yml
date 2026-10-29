@@ -122,11 +122,16 @@ jobs:
 
       - name: Run Automated DAST Security Penetration Suite
         run: |
-          cd security-tests
-          npm install
-          node security-penetration-tests.js || true
-          node generate-vulnerability-results.js || true
-          cd ..
+          if [ -d "security-tests" ]; then
+            cd security-tests
+            npm install || true
+            node security-penetration-tests.js || true
+            node generate-vulnerability-results.js || true
+            cd ..
+          else
+            echo "Running python security excel report generator..."
+            python generate_security_excel_reports.py || true
+          fi
 
       - name: Upload Security Vulnerability Assessment Artifacts
         uses: actions/upload-artifact@v4

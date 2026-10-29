@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     SMTP_PORT: str = Field(default="587")
     SMTP_USER: str = Field(default="devpant2006@gmail.com")
     SMTP_USERNAME: str = Field(default="devpant2006@gmail.com")
-    SMTP_PASSWORD: str = Field(default="emetdeljxehsoyau")
+    SMTP_PASSWORD: str = Field(default=os.getenv("SMTP_PASSWORD", ""))
     SMTP_SENDER: str = Field(default="devpant2006@gmail.com")
     SMTP_FROM: str = Field(default="devpant2006@gmail.com")
     EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS: int = Field(default=24)

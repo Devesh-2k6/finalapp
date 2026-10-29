@@ -183,7 +183,7 @@ def verify_otp_code(identifier: str, code: str) -> Tuple[bool, str]:
 def send_otp_to_identifier(identifier: str, name: Optional[str] = None, purpose: str = "login") -> Dict[str, Any]:
     """
     Wrapper for router endpoints returning dict structure.
-    In debug mode, includes dev_code for instant developer testing.
+    Production hardened: Never exposes raw OTP codes.
     """
     clean_id = identifier.strip().lower()
     now = time.time()
@@ -197,19 +197,14 @@ def send_otp_to_identifier(identifier: str, name: Optional[str] = None, purpose:
                     "success": False,
                     "message": f"Please wait {remaining} seconds before requesting a new OTP code.",
                     "cooldown_remaining": remaining,
-                    "dev_code": existing.get("code"),
                 }
 
     success, msg = generate_and_send_otp(clean_id, name=name, purpose=purpose)
-    with _OTP_LOCK:
-        current_record = _OTP_STORE.get(clean_id, {})
-        code_val = current_record.get("code")
     return {
         "success": success,
         "message": msg,
         "expires_in_seconds": OTP_EXPIRATION_SECONDS,
         "cooldown_remaining": 0,
-        "dev_code": code_val,
     }
 
 
