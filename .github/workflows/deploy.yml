@@ -2,9 +2,6 @@ name: Deploy to Railway
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 jobs:
   deploy:
@@ -33,7 +30,7 @@ jobs:
         run: railway up --service backend || true
 
       - name: Deploy Frontend
-        if: steps.check_creds.outputs.skip == 'false' && secrets.VERCEL_TOKEN != ''
+        if: steps.check_creds.outputs.skip == 'false'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: vercel deploy --prod || true
