@@ -1,27 +1,30 @@
 {
-  "name": "meeva-appium-tests",
+  "name": "expirygo-mobile-appium-tests",
   "version": "1.0.0",
-  "description": "Appium & WebDriverIO Mobile E2E Automated Test Suite & Excel Reporting for Meeva Mobile App",
+  "description": "Comprehensive Appium Mobile E2E automated test suite for ExpiryGo (Meeva) React Native / Expo App",
   "main": "appium-tests.js",
   "type": "module",
   "scripts": {
     "test": "node appium-tests.js",
-    "test:mobile": "node appium-tests.js",
-    "test:spec": "node tests/mobile-e2e-tests.js",
-    "generate:report": "python generate_mobile_matrix_excel.py"
+    "test:android": "PLATFORM=android node appium-tests.js",
+    "test:ios": "PLATFORM=ios node appium-tests.js",
+    "generate:matrix": "python generate_mobile_matrix_excel.py"
   },
   "keywords": [
     "appium",
     "webdriverio",
-    "mobile-testing",
+    "mobile",
     "e2e",
     "react-native",
     "expo",
     "android",
-    "ios"
+    "ios",
+    "expirygo"
   ],
+  "author": "ExpiryGo Mobile QA Team",
+  "license": "ISC",
   "dependencies": {
-    "exceljs": "^4.4.0",
-    "webdriverio": "^8.41.0"
+    "appium": "^2.16.0",
+    "webdriverio": "^9.5.0"
   }
 }

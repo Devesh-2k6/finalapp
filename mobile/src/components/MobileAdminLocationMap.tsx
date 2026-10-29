@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   loadingContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#F8FAFC",

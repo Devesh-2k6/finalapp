@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { getErrorMessage } from "@/api/errors";
 import { useAuth } from "@/contexts/AuthenticationContext";
 import { useToast, ConfirmModal } from "@/components/ui/Toast";
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 export default function MyReservations() {
   const { user, isLoading: authLoading } = useAuth();
@@ -23,6 +24,13 @@ export default function MyReservations() {
   const [loading, setLoading] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
+
+  // Synchronize orders and reservations in real-time across Web & Mobile
+  useWebSocket(() => {
+    if (user) {
+      loadReservations();
+    }
+  });
 
   // Review Modal State
   const [activeShopForReview, setActiveShopForReview] = useState<string | null>(null);

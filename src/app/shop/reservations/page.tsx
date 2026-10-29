@@ -6,11 +6,17 @@ import { getShopOrders, updateOrderStatus, verifyOrderPayment, verifyOrderDelive
 import type { ApiReservation, ApiOrder, OrderStatus } from "@/types/product";
 import { Loader2, CheckCircle, Package, Clock, ShieldCheck, XCircle, Truck, ShoppingBag, QrCode, KeyRound, AlertTriangle } from "lucide-react";
 import { getErrorMessage } from "@/api/errors";
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 export default function ShopReservations() {
   const [reservations, setReservations] = useState<ApiReservation[]>([]);
   const [orders, setOrders] = useState<ApiOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Real-time synchronization: reload merchant orders & reservations instantly
+  useWebSocket(() => {
+    loadData();
+  });
   
   // Tab State: "reservations" or "orders"
   const [activeTab, setActiveTab] = useState<"reservations" | "orders">("orders");

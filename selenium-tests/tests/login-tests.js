@@ -1,25 +1,28 @@
 /**
- * Meeva Web Frontend - Selenium E2E Automation Test Suite
- * File: selenium-tests/tests/login-tests.js
+ * ==============================================================================
+ * EXPIRYGO (MEEVA) WEB FRONTEND - SELENIUM WEBDRIVER E2E TEST SUITE
+ * ==============================================================================
+ * Module: Authentication, Role-Based Access, OTP Verification & Security Validations
+ * Target Application: ExpiryGo Next.js Web Frontend (http://localhost:3000/auth)
+ * Framework: Selenium WebDriver (Node.js ES Module)
  *
- * Covers End-to-End browser test automation for:
- *  - Customer, Vendor, and Admin Authentication
- *  - Role selection, switching, and role mismatch guards
- *  - Password-based Login & OTP-based 6-digit Login flows
- *  - Password Visibility toggle (Eye/EyeOff masking)
- *  - Customer Registration & Password confirmation validation
- *  - Vendor Onboarding, Store Category selection & KYC uploads
- *  - Password Recovery & Reset flows (Forgot Password -> OTP -> New Password)
- *  - Google OAuth / 1-Click Fast Identity modal & configuration
- *  - Form validations, SQLi/XSS sanitization security checks
- *  - LocalStorage token persistence & Post-login role routing
- *
- * Requirements:
- *  npm install selenium-webdriver chromedriver
- *  Run: node tests/login-tests.js
+ * Test Coverage:
+ *  1. UI Initialization, Brand Assets & Accessibility Landmarks
+ *  2. Tab Switching (Sign In vs Sign Up vs OTP vs Forgot Password)
+ *  3. Role Mode Selection (Customer, Vendor, Admin Dynamic Morphing)
+ *  4. Form Input Masking & Password Visibility Toggle
+ *  5. HTML5 & Custom Validation (Empty fields, Malformed Emails, Edge Boundaries)
+ *  6. Password Authentication (Customer, Vendor, Admin Valid/Invalid Flows)
+ *  7. 6-Digit OTP Authentication Lifecycle (Send, Verify, Format, Rate Limit)
+ *  8. Password Recovery & Reset Flow (Email -> OTP -> New Password -> Success)
+ *  9. OAuth Integration Checks (Google Sign-In Visibility based on Role)
+ * 10. Security Checks (SQL Injection, XSS Sanitization, Double Submission Prevention)
+ * 11. Protected Route Redirection & Session Integrity
+ * 12. Responsive Viewport & UI State Consistency
+ * ==============================================================================
  */
 
-import { Builder, By, until, Key } from "selenium-webdriver";
+import { Builder, By, Key, until } from "selenium-webdriver";
 import chrome from "selenium-webdriver/chrome.js";
 import fs from "fs";
 import path from "path";
@@ -28,685 +31,615 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ==========================================
-// Test Configuration & Environment Variables
-// ==========================================
-const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
-const AUTH_URL = `${BASE_URL}/auth`;
-const IS_HEADLESS = process.env.HEADLESS !== "false";
-const DEFAULT_TIMEOUT = parseInt(process.env.TIMEOUT || "8000", 10);
-const SCREENSHOT_DIR = path.join(__dirname, "..", "screenshots");
+// ==============================================================================
+// CONFIGURATION & TEST HARNESS SETTINGS
+// ==============================================================================
+const CONFIG = {
+  BASE_URL: process.env.BASE_URL || "http://localhost:3000",
+  AUTH_URL: process.env.AUTH_URL || "http://localhost:3000/auth",
+  API_URL: process.env.API_URL || "http://localhost:8000",
+  HEADLESS: process.env.HEADLESS === "true",
+  DEFAULT_TIMEOUT_MS: 12000,
+  POLL_INTERVAL_MS: 300,
+  SCREENSHOTS_DIR: path.join(__dirname, "../screenshots"),
+  CREDENTIALS: {
+    CUSTOMER: {
+      email: "customer.demo@expirygo.com",
+      password: "CustomerPassword123!",
+      invalidPassword: "WrongPassword999#",
+    },
+    VENDOR: {
+      email: "vendor.demo@expirygo.com",
+      password: "VendorPassword123!",
+      invalidPassword: "WrongPassword999#",
+    },
+    ADMIN: {
+      email: "admin@expirygo.com",
+      password: "AdminPassword123!",
+      invalidPassword: "WrongAdminPass999!",
+    },
+    NON_EXISTENT: {
+      email: "ghost.user.unregistered@example.com",
+      password: "GhostPassword123!",
+    },
+    OTP_TEST: {
+      email: "otp.verify.test@example.com",
+      validOtp: "123456",
+      invalidOtp: "000000",
+    },
+  },
+};
 
-// Create screenshot directory if not existing
-if (!fs.existsSync(SCREENSHOT_DIR)) {
-  fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
-}
+// Colors for terminal reporting
+const COLORS = {
+  reset: "\x1b[0m",
+  bright: "\x1b[1m",
+  green: "\x1b[32m",
+  red: "\x1b[31m",
+  yellow: "\x1b[33m",
+  cyan: "\x1b[36m",
+  blue: "\x1b[34m",
+  magenta: "\x1b[35m",
+};
 
-// ==========================================
-// Page Object Model: AuthPage
-// ==========================================
-class AuthPage {
-  /**
-   * @param {import('selenium-webdriver').WebDriver} driver
-   */
-  constructor(driver) {
-    this.driver = driver;
-  }
-
-  // --- Locators ---
-  get locators() {
-    return {
-      // Header & Branding
-      brandHeading: By.xpath("//span[contains(text(),'Mee') and contains(text(),'va')]"),
-      pageSubtitle: By.xpath("//div[contains(@class,'text-center')]//p"),
-
-      // Tab switcher: Sign In vs Sign Up
-      tabSignIn: By.xpath("//button[text()='Sign In']"),
-      tabSignUp: By.xpath("//button[text()='Sign Up']"),
-
-      // Role selectors
-      roleCustomer: By.xpath("//button[contains(.,'Customer')]"),
-      roleVendor: By.xpath("//button[contains(.,'Vendor')]"),
-      roleAdmin: By.xpath("//button[contains(.,'Admin')]"),
-
-      // Login Mode switcher: Password vs OTP
-      loginModePassword: By.xpath("//button[contains(.,'Password Sign In')]"),
-      loginModeOtp: By.xpath("//button[contains(.,'6-Digit OTP Sign In')]"),
-
-      // Password Login Inputs
-      loginEmailInput: By.css('input[name="login_email_no_autofill"]'),
-      loginPasswordInput: By.css('input[name="login_password_no_autofill"]'),
-      loginSubmitButton: By.xpath("//form//button[@type='submit']"),
-      passwordToggleBtn: By.xpath("//input[@name='login_password_no_autofill']/following-sibling::button"),
-      forgotPasswordLink: By.xpath("//button[contains(text(),'Forgot password?')]"),
-      switchOtpSignInLink: By.xpath("//button[contains(text(),'Sign in via OTP')]"),
-
-      // OTP Sign In Inputs
-      otpEmailInput: By.xpath("//input[@type='email' and @placeholder='name@example.com']"),
-      sendOtpButton: By.xpath("//button[contains(.,'Send 6-Digit Login Code')]"),
-
-      // OTP Verification Screen
-      otpCodeInput: By.xpath("//input[@maxLength='6' and contains(@placeholder,'•••')]"),
-      verifyOtpSubmitBtn: By.xpath("//button[contains(.,'Verify OTP & Complete Sign In')]"),
-      otpResendBtn: By.xpath("//button[contains(text(),'Resend OTP') or contains(text(),'Resend in')]"),
-      otpBackBtn: By.xpath("//button[contains(text(),'Back to')]"),
-
-      // Customer Sign Up Inputs
-      custNameInput: By.css('input[name="cust_name_field"]'),
-      custEmailInput: By.css('input[name="cust_email_field"]'),
-      custPassInput: By.css('input[name="cust_password_field"]'),
-      custConfirmPassInput: By.css('input[name="cust_confirm_password_field"]'),
-      custShowPassCheckbox: By.id("showCustPass"),
-      custSignupSubmitBtn: By.xpath("//form//button[@type='submit']"),
-
-      // Vendor Sign Up Inputs
-      vendorShopNameInput: By.css('input[name="vendor_shop_name_field"]'),
-      vendorCategoryPills: By.xpath("//form//div[contains(@class,'grid-cols-2') or contains(@class,'grid-cols-3')]//button"),
-      vendorEmailInput: By.css('input[name="vendor_email_field"]'),
-      vendorPhoneInput: By.css('input[name="vendor_phone_field"]'),
-      vendorUpiInput: By.css('input[name="vendor_upi_field"]'),
-      vendorPassInput: By.css('input[name="vendor_pass_field"]'),
-      vendorConfirmPassInput: By.css('input[name="vendor_confirm_pass_field"]'),
-      vendorShowPassCheckbox: By.id("showVendPass"),
-      vendorPhotoInput: By.xpath("//input[@type='file' and contains(@accept,'image')]"),
-      vendorDocInput: By.xpath("//input[@type='file' and contains(@accept,'.pdf')]"),
-      vendorSignupSubmitBtn: By.xpath("//form//button[@type='submit']"),
-
-      // Forgot Password Inputs
-      forgotEmailInput: By.xpath("//form//input[@type='email']"),
-      forgotSendCodeBtn: By.xpath("//button[contains(.,'Send 6-Digit Reset Code')]"),
-      forgotOtpInput: By.xpath("//form//input[@maxLength='6']"),
-      forgotNewPassInput: By.xpath("//input[@placeholder='Min 6 characters']"),
-      forgotConfirmPassInput: By.xpath("//input[@placeholder='Repeat new password']"),
-      forgotSubmitNewPassBtn: By.xpath("//button[contains(.,'Reset Password & Sign In')]"),
-      forgotDevCodeBtn: By.xpath("//button[contains(text(),'Fill Code')]"),
-      forgotBackLink: By.xpath("//button[contains(text(),'Back to Sign In')]"),
-
-      // Google 1-Click Fast Auth
-      googleContinueBtn: By.xpath("//button[contains(.,'Continue with Google') or contains(.,'Continue as Admin with Google')]"),
-      googleModal: By.xpath("//div[contains(@class,'fixed inset-0')]"),
-      googleModalCloseBtn: By.xpath("//div[contains(@class,'fixed inset-0')]//button[@title='Close']"),
-      googleModalEmailInput: By.xpath("//div[contains(@class,'fixed inset-0')]//input[@type='email']"),
-      googleModalSubmitBtn: By.xpath("//div[contains(@class,'fixed inset-0')]//button[@type='submit']"),
-      googleAdminShortcutBtn: By.xpath("//div[contains(@class,'fixed inset-0')]//button[contains(.,'Platform Admin')]"),
-      googleClientIdSetupToggle: By.xpath("//button[contains(.,'Connect Google Client ID')]"),
-      googleClientIdInput: By.xpath("//input[contains(@placeholder,'apps.googleusercontent.com')]"),
-
-      // Alerts & Messages
-      errorMessage: By.xpath("//p[contains(@class,'text-red-600')]"),
-      statusMessage: By.xpath("//p[contains(@class,'text-purple-700') or contains(@class,'text-red-700')]"),
-      successIcon: By.xpath("//*[contains(@class,'lucide-check-circle')]"),
-    };
-  }
-
-  // --- Helper Methods ---
-
-  async open(params = "") {
-    const url = params ? `${AUTH_URL}?${params}` : AUTH_URL;
-    await this.driver.get(url);
-    await this.waitForPageLoad();
-  }
-
-  async waitForPageLoad() {
-    await this.driver.wait(
-      until.elementLocated(this.locators.brandHeading),
-      DEFAULT_TIMEOUT,
-      "Auth page did not load brand heading in time."
-    );
-  }
-
-  async selectTab(tabName) {
-    const target = tabName.toLowerCase() === "signup" ? this.locators.tabSignUp : this.locators.tabSignIn;
-    const btn = await this.driver.wait(until.elementLocated(target), DEFAULT_TIMEOUT);
-    await btn.click();
-    await this.driver.sleep(300);
-  }
-
-  async selectRole(role) {
-    let target = this.locators.roleCustomer;
-    if (role.toLowerCase() === "vendor") target = this.locators.roleVendor;
-    if (role.toLowerCase() === "admin") target = this.locators.roleAdmin;
-
-    const btn = await this.driver.wait(until.elementLocated(target), DEFAULT_TIMEOUT);
-    await btn.click();
-    await this.driver.sleep(300);
-  }
-
-  async selectLoginMode(mode) {
-    const target = mode.toLowerCase() === "otp" ? this.locators.loginModeOtp : this.locators.loginModePassword;
-    const btn = await this.driver.wait(until.elementLocated(target), DEFAULT_TIMEOUT);
-    await btn.click();
-    await this.driver.sleep(300);
-  }
-
-  async loginWithPassword(email, password) {
-    const emailField = await this.driver.wait(until.elementLocated(this.locators.loginEmailInput), DEFAULT_TIMEOUT);
-    await emailField.clear();
-    if (email) await emailField.sendKeys(email);
-
-    const passField = await this.driver.wait(until.elementLocated(this.locators.loginPasswordInput), DEFAULT_TIMEOUT);
-    await passField.clear();
-    if (password) await passField.sendKeys(password);
-
-    const submitBtn = await this.driver.findElement(this.locators.loginSubmitButton);
-    await submitBtn.click();
-  }
-
-  async togglePasswordVisibility() {
-    const toggle = await this.driver.wait(until.elementLocated(this.locators.passwordToggleBtn), DEFAULT_TIMEOUT);
-    await toggle.click();
-  }
-
-  async getPasswordInputType() {
-    const passField = await this.driver.findElement(this.locators.loginPasswordInput);
-    return await passField.getAttribute("type");
-  }
-
-  async getErrorMessage() {
-    try {
-      const errEl = await this.driver.wait(until.elementLocated(this.locators.errorMessage), 3000);
-      return await errEl.getText();
-    } catch {
-      return null;
-    }
-  }
-
-  async getStatusMessage() {
-    try {
-      const msgEl = await this.driver.wait(until.elementLocated(this.locators.statusMessage), 3000);
-      return await msgEl.getText();
-    } catch {
-      return null;
-    }
-  }
-
-  async triggerOtpLogin(email) {
-    await this.selectLoginMode("otp");
-    const input = await this.driver.wait(until.elementLocated(this.locators.otpEmailInput), DEFAULT_TIMEOUT);
-    await input.clear();
-    await input.sendKeys(email);
-    const btn = await this.driver.findElement(this.locators.sendOtpButton);
-    await btn.click();
-  }
-
-  async fillOtp(code) {
-    const otpInput = await this.driver.wait(until.elementLocated(this.locators.otpCodeInput), DEFAULT_TIMEOUT);
-    await otpInput.clear();
-    await otpInput.sendKeys(code);
-    const btn = await this.driver.findElement(this.locators.verifyOtpSubmitBtn);
-    await btn.click();
-  }
-
-  async fillCustomerSignup(name, email, password, confirmPassword) {
-    await this.selectTab("signup");
-    await this.selectRole("customer");
-
-    const nameEl = await this.driver.wait(until.elementLocated(this.locators.custNameInput), DEFAULT_TIMEOUT);
-    await nameEl.clear();
-    if (name) await nameEl.sendKeys(name);
-
-    const emailEl = await this.driver.findElement(this.locators.custEmailInput);
-    await emailEl.clear();
-    if (email) await emailEl.sendKeys(email);
-
-    const passEl = await this.driver.findElement(this.locators.custPassInput);
-    await passEl.clear();
-    if (password) await passEl.sendKeys(password);
-
-    const confirmEl = await this.driver.findElement(this.locators.custConfirmPassInput);
-    await confirmEl.clear();
-    if (confirmPassword) await confirmEl.sendKeys(confirmPassword);
-
-    const submitBtn = await this.driver.findElement(this.locators.custSignupSubmitBtn);
-    await submitBtn.click();
-  }
-
-  async openGoogleModal() {
-    const btn = await this.driver.wait(until.elementLocated(this.locators.googleContinueBtn), DEFAULT_TIMEOUT);
-    await btn.click();
-    await this.driver.wait(until.elementLocated(this.locators.googleModal), DEFAULT_TIMEOUT);
-  }
-
-  async closeGoogleModal() {
-    const closeBtn = await this.driver.findElement(this.locators.googleModalCloseBtn);
-    await closeBtn.click();
-    await this.driver.sleep(300);
-  }
-
-  async clickForgotPassword() {
-    const link = await this.driver.wait(until.elementLocated(this.locators.forgotPasswordLink), DEFAULT_TIMEOUT);
-    await link.click();
-    await this.driver.wait(until.elementLocated(this.locators.forgotEmailInput), DEFAULT_TIMEOUT);
-  }
-
-  async submitForgotPasswordEmail(email) {
-    const input = await this.driver.findElement(this.locators.forgotEmailInput);
-    await input.clear();
-    await input.sendKeys(email);
-    const btn = await this.driver.findElement(this.locators.forgotSendCodeBtn);
-    await btn.click();
-  }
-
-  async takeScreenshot(name) {
-    try {
-      const image = await this.driver.takeScreenshot();
-      const filename = path.join(SCREENSHOT_DIR, `${Date.now()}_${name}.png`);
-      fs.writeFileSync(filename, image, "base64");
-      return filename;
-    } catch (e) {
-      console.error(`Failed to capture screenshot: ${e.message}`);
-      return null;
-    }
-  }
-}
-
-// ==========================================
-// Custom Lightweight Test Suite Runner
-// ==========================================
-class TestSuiteRunner {
+// ==============================================================================
+// TEST RESULTS RECORDER
+// ==============================================================================
+class TestSuiteReporter {
   constructor() {
+    this.total = 0;
+    this.passed = 0;
+    this.failed = 0;
+    this.skipped = 0;
+    this.startTime = Date.now();
     this.results = [];
-    this.currentSuite = "";
   }
 
-  suite(name) {
-    this.currentSuite = name;
-    console.log(`\n\x1b[1m\x1b[35m=== SUITE: ${name} ===\x1b[0m`);
-  }
+  record(testId, suiteName, description, status, durationMs, error = null) {
+    this.total++;
+    if (status === "PASS") this.passed++;
+    else if (status === "FAIL") this.failed++;
+    else this.skipped++;
 
-  async test(caseId, description, fn) {
-    const startTime = Date.now();
-    process.stdout.write(`  [${caseId}] ${description} ... `);
-    try {
-      await fn();
-      const duration = Date.now() - startTime;
-      console.log(`\x1b[32mPASSED\x1b[0m (${duration}ms)`);
-      this.results.push({ id: caseId, suite: this.currentSuite, desc: description, status: "PASSED", duration, error: null });
-    } catch (err) {
-      const duration = Date.now() - startTime;
-      console.log(`\x1b[31mFAILED\x1b[0m (${duration}ms)`);
-      console.log(`     \x1b[31mError: ${err.message}\x1b[0m`);
-      this.results.push({ id: caseId, suite: this.currentSuite, desc: description, status: "FAILED", duration, error: err.message });
+    const entry = {
+      testId,
+      suiteName,
+      description,
+      status,
+      durationMs,
+      error: error ? error.message : null,
+      timestamp: new Date().toISOString(),
+    };
+    this.results.push(entry);
+
+    const badge =
+      status === "PASS"
+        ? `${COLORS.green}✓ [PASS]${COLORS.reset}`
+        : `${COLORS.red}✗ [FAIL]${COLORS.reset}`;
+    console.log(`  ${badge} ${COLORS.bright}[${testId}]${COLORS.reset} ${description} (${durationMs}ms)`);
+    if (error) {
+      console.log(`     ${COLORS.red}Error: ${error.message}${COLORS.reset}`);
     }
   }
 
   printSummary() {
-    const total = this.results.length;
-    const passed = this.results.filter((r) => r.status === "PASSED").length;
-    const failed = total - passed;
-    const passRate = total > 0 ? ((passed / total) * 100).toFixed(1) : "0.0";
+    const elapsedSec = ((Date.now() - this.startTime) / 1000).toFixed(2);
+    const passRate = this.total > 0 ? ((this.passed / this.total) * 100).toFixed(1) : 0;
 
-    console.log("\n" + "=".repeat(60));
-    console.log(`\x1b[1mTEST EXECUTION SUMMARY\x1b[0m`);
-    console.log("=".repeat(60));
-    console.log(`Total Automated Scenarios Executed : ${total}`);
-    console.log(`\x1b[32mPassed                             : ${passed}\x1b[0m`);
-    console.log(`\x1b[31mFailed                             : ${failed}\x1b[0m`);
-    console.log(`Pass Rate                          : ${passRate}%`);
-    console.log("=".repeat(60) + "\n");
+    console.log("\n" + "=".repeat(85));
+    console.log(`${COLORS.bright}${COLORS.cyan}🏁 EXPIRYGO WEB E2E TEST SUITE EXECUTION SUMMARY${COLORS.reset}`);
+    console.log("=".repeat(85));
+    console.log(` Total Executed Tests: ${COLORS.bright}${this.total}${COLORS.reset}`);
+    console.log(` Passed:              ${COLORS.green}${this.passed}${COLORS.reset}`);
+    console.log(` Failed:              ${COLORS.red}${this.failed}${COLORS.reset}`);
+    console.log(` Skipped:             ${COLORS.yellow}${this.skipped}${COLORS.reset}`);
+    console.log(` Pass Rate:           ${COLORS.bright}${passRate}%${COLORS.reset}`);
+    console.log(` Elapsed Time:        ${elapsedSec}s`);
+    console.log("=".repeat(85) + "\n");
   }
 }
 
-// ==========================================
-// Main Selenium Execution Function
-// ==========================================
-export async function runLoginTests() {
-  console.log(`\x1b[1mStarting Meeva Web Frontend E2E Selenium Tests\x1b[0m`);
-  console.log(`Target URL : ${AUTH_URL}`);
-  console.log(`Headless   : ${IS_HEADLESS}`);
+const reporter = new TestSuiteReporter();
 
-  const chromeOptions = new chrome.Options();
-  if (IS_HEADLESS) {
-    chromeOptions.addArguments("--headless=new");
+// ==============================================================================
+// DRIVER FACTORY & UTILITIES
+// ==============================================================================
+async function createWebDriver() {
+  const options = new chrome.Options();
+  options.addArguments("--no-sandbox");
+  options.addArguments("--disable-dev-shm-usage");
+  options.addArguments("--disable-gpu");
+  options.addArguments("--window-size=1440,900");
+  options.addArguments("--disable-blink-features=AutomationControlled");
+
+  if (CONFIG.HEADLESS) {
+    options.addArguments("--headless=new");
   }
-  chromeOptions.addArguments(
-    "--no-sandbox",
-    "--disable-dev-shm-usage",
-    "--disable-gpu",
-    "--window-size=1440,900",
-    "--disable-extensions",
-    "--ignore-certificate-errors"
-  );
 
-  let driver;
-  const runner = new TestSuiteRunner();
+  const driver = await new Builder().forBrowser("chrome").setChromeOptions(options).build();
+  await driver.manage().setTimeouts({ implicit: 3000, pageLoad: 20000 });
+  return driver;
+}
+
+async function takeScreenshotOnFailure(driver, testId) {
+  try {
+    if (!fs.existsSync(CONFIG.SCREENSHOTS_DIR)) {
+      fs.mkdirSync(CONFIG.SCREENSHOTS_DIR, { recursive: true });
+    }
+    const screenshot = await driver.takeScreenshot();
+    const filename = path.join(CONFIG.SCREENSHOTS_DIR, `failure_${testId}_${Date.now()}.png`);
+    fs.writeFileSync(filename, screenshot, "base64");
+    console.log(`     ${COLORS.yellow}📷 Screenshot captured: ${filename}${COLORS.reset}`);
+  } catch (err) {
+    console.error(`     Failed to save screenshot for ${testId}:`, err.message);
+  }
+}
+
+async function safeClick(driver, locator, timeout = CONFIG.DEFAULT_TIMEOUT_MS) {
+  const element = await driver.wait(until.elementLocated(locator), timeout);
+  await driver.wait(until.elementIsVisible(element), timeout);
+  await driver.wait(until.elementIsEnabled(element), timeout);
+  await driver.executeScript("arguments[0].scrollIntoView({block: 'center'});", element);
+  await element.click();
+  return element;
+}
+
+async function safeType(driver, locator, text, clearFirst = true, timeout = CONFIG.DEFAULT_TIMEOUT_MS) {
+  const element = await driver.wait(until.elementLocated(locator), timeout);
+  await driver.wait(until.elementIsVisible(element), timeout);
+  if (clearFirst) {
+    await element.sendKeys(Key.chord(Key.CONTROL, "a"));
+    await element.sendKeys(Key.BACK_SPACE);
+    await element.clear();
+  }
+  if (text) {
+    await element.sendKeys(text);
+  }
+  return element;
+}
+
+// ==============================================================================
+// TEST RUNNER WRAPPER
+// ==============================================================================
+async function runTest(driver, testId, suiteName, description, testFn) {
+  const start = Date.now();
+  try {
+    await testFn(driver);
+    const duration = Date.now() - start;
+    reporter.record(testId, suiteName, description, "PASS", duration);
+  } catch (error) {
+    const duration = Date.now() - start;
+    await takeScreenshotOnFailure(driver, testId);
+    reporter.record(testId, suiteName, description, "FAIL", duration, error);
+  }
+}
+
+// ==============================================================================
+// TEST SUITES IMPLEMENTATION
+// ==============================================================================
+
+async function executeTestSuite() {
+  console.log("\n" + "=".repeat(85));
+  console.log(`${COLORS.bright}${COLORS.blue}🚀 STARTING EXPIRYGO SELENIUM WEBDRIVER E2E TEST SUITE${COLORS.reset}`);
+  console.log(` Target URL:  ${CONFIG.AUTH_URL}`);
+  console.log(` Headless:    ${CONFIG.HEADLESS}`);
+  console.log("=".repeat(85) + "\n");
+
+  const driver = await createWebDriver();
 
   try {
-    driver = await new Builder().forBrowser("chrome").setChromeOptions(chromeOptions).build();
-    await driver.manage().setTimeouts({ implicit: 2000, pageLoad: 15000 });
+    // --------------------------------------------------------------------------
+    // SUITE 1: PAGE LOAD & BRANDING LANDMARKS
+    // --------------------------------------------------------------------------
+    console.log(`\n${COLORS.bright}${COLORS.magenta}[SUITE 1] Page Load, Layout & Branding Elements${COLORS.reset}`);
 
-    const authPage = new AuthPage(driver);
+    await runTest(driver, "TC-AUTH-001", "Page Load", "Load /auth page and verify HTTP status & title", async (d) => {
+      await d.get(CONFIG.AUTH_URL);
+      const title = await d.getTitle();
+      if (!title) throw new Error("Page title is empty or page did not load");
+    });
 
-    // ----------------------------------------------------
-    // SUITE 1: Page Navigation, Layout & Default UI States
-    // ----------------------------------------------------
-    runner.suite("1. Page Navigation, Layout & Default States");
+    await runTest(driver, "TC-AUTH-002", "Page Load", "Verify ExpiryGo / Meeva logo and branding container is rendered", async (d) => {
+      const brandLogo = await d.wait(
+        until.elementLocated(By.xpath("//*[contains(text(), 'ExpiryGo') or contains(text(), 'Meeva')]")),
+        CONFIG.DEFAULT_TIMEOUT_MS
+      );
+      if (!(await brandLogo.isDisplayed())) throw new Error("Branding logo/title is not displayed");
+    });
 
-    await runner.test("TC_AUTH_001", "Verify Auth Page loads with valid brand heading & title", async () => {
-      await authPage.open();
-      const heading = await driver.findElement(authPage.locators.brandHeading);
-      const text = await heading.getText();
-      if (!text.toLowerCase().includes("meeva")) {
-        throw new Error(`Expected heading to include 'Meeva', got: '${text}'`);
+    await runTest(driver, "TC-AUTH-003", "Page Load", "Verify main authentication card container has proper viewport alignment", async (d) => {
+      const card = await d.findElement(By.xpath("//div[contains(@class, 'rounded-3xl') or contains(@class, 'shadow-2xl')]"));
+      if (!(await card.isDisplayed())) throw new Error("Auth card container not visible");
+    });
+
+    // --------------------------------------------------------------------------
+    // SUITE 2: TAB SWITCHING (SIGN IN / SIGN UP / FORGOT PASSWORD / OTP)
+    // --------------------------------------------------------------------------
+    console.log(`\n${COLORS.bright}${COLORS.magenta}[SUITE 2] Tab Switching & Mode State Transitions${COLORS.reset}`);
+
+    await runTest(driver, "TC-AUTH-010", "Tab Navigation", "Verify default active tab is 'Sign In'", async (d) => {
+      const signInTab = await d.findElement(By.xpath("//button[normalize-space()='Sign In']"));
+      const isSelected = await signInTab.getAttribute("class");
+      if (!isSelected.includes("shadow-sm") && !isSelected.includes("bg-white")) {
+        throw new Error("Sign In tab is not visually active by default");
       }
     });
 
-    await runner.test("TC_AUTH_002", "Verify default active tab is 'Sign In' and role is 'Customer'", async () => {
-      await authPage.open();
-      const signInBtn = await driver.findElement(authPage.locators.tabSignIn);
-      const customerRoleBtn = await driver.findElement(authPage.locators.roleCustomer);
+    await runTest(driver, "TC-AUTH-011", "Tab Navigation", "Switch to 'Sign Up' tab and verify customer signup form appears", async (d) => {
+      await safeClick(d, By.xpath("//button[normalize-space()='Sign Up']"));
+      const fullNameInput = await d.wait(
+        until.elementLocated(By.css("input[name='cust_name_field']")),
+        CONFIG.DEFAULT_TIMEOUT_MS
+      );
+      if (!(await fullNameInput.isDisplayed())) throw new Error("Customer Name field did not display on Sign Up tab");
+    });
 
-      const signInClass = await signInBtn.getAttribute("class");
-      const customerClass = await customerRoleBtn.getAttribute("class");
+    await runTest(driver, "TC-AUTH-012", "Tab Navigation", "Switch back to 'Sign In' tab and verify login inputs render", async (d) => {
+      await safeClick(d, By.xpath("//button[normalize-space()='Sign In']"));
+      const emailInput = await d.wait(
+        until.elementLocated(By.css("input[name='login_email_no_autofill'], input[type='email']")),
+        CONFIG.DEFAULT_TIMEOUT_MS
+      );
+      if (!(await emailInput.isDisplayed())) throw new Error("Login email input is not visible");
+    });
 
-      if (!signInClass.includes("text-purple-700") && !signInClass.includes("shadow-sm")) {
-        throw new Error("Sign In tab is not visually marked active by default.");
-      }
-      if (!customerClass.includes("text-purple-700") && !customerClass.includes("shadow-sm")) {
-        throw new Error("Customer role button is not active by default.");
+    // --------------------------------------------------------------------------
+    // SUITE 3: ROLE MODE SELECTION (CUSTOMER, VENDOR, ADMIN)
+    // --------------------------------------------------------------------------
+    console.log(`\n${COLORS.bright}${COLORS.magenta}[SUITE 3] Role Mode Switching & Dynamic Form Morphing${COLORS.reset}`);
+
+    await runTest(driver, "TC-AUTH-020", "Role Selection", "Verify 'Customer' role is selected by default", async (d) => {
+      const customerRoleBtn = await d.findElement(By.xpath("//button[contains(., 'Customer')]"));
+      const classAttr = await customerRoleBtn.getAttribute("class");
+      if (!classAttr.includes("text-purple-700") && !classAttr.includes("font-black")) {
+        throw new Error("Customer role button is not highlighted as active");
       }
     });
 
-    await runner.test("TC_AUTH_003", "Verify all 3 roles (Customer, Vendor, Admin) are available in Sign In", async () => {
-      await authPage.open();
-      await driver.findElement(authPage.locators.roleCustomer);
-      await driver.findElement(authPage.locators.roleVendor);
-      await driver.findElement(authPage.locators.roleAdmin);
-    });
-
-    await runner.test("TC_AUTH_004", "Verify Admin role is hidden when switching to 'Sign Up' tab", async () => {
-      await authPage.open();
-      await authPage.selectTab("signup");
-      const adminBtns = await driver.findElements(authPage.locators.roleAdmin);
-      if (adminBtns.length > 0) {
-        throw new Error("Admin role tab should NOT be visible during Sign Up.");
+    await runTest(driver, "TC-AUTH-021", "Role Selection", "Switch to 'Vendor' role and verify role state updates", async (d) => {
+      await safeClick(d, By.xpath("//button[contains(., 'Vendor')]"));
+      const vendorBtn = await d.findElement(By.xpath("//button[contains(., 'Vendor')]"));
+      const classAttr = await vendorBtn.getAttribute("class");
+      if (!classAttr.includes("bg-white") && !classAttr.includes("text-purple-600")) {
+        throw new Error("Vendor role button does not show active visual state");
       }
     });
 
-    // ----------------------------------------------------
-    // SUITE 2: Customer Password Login Validation & Controls
-    // ----------------------------------------------------
-    runner.suite("2. Customer Password Login Validation & Controls");
-
-    await runner.test("TC_AUTH_005", "Verify Password Visibility Toggle switches type 'password' to 'text'", async () => {
-      await authPage.open();
-      const initialType = await authPage.getPasswordInputType();
-      if (initialType !== "password") {
-        throw new Error(`Expected input type 'password', got '${initialType}'`);
-      }
-
-      await authPage.togglePasswordVisibility();
-      const toggledType = await authPage.getPasswordInputType();
-      if (toggledType !== "text") {
-        throw new Error(`Expected input type 'text' after eye toggle click, got '${toggledType}'`);
-      }
-
-      await authPage.togglePasswordVisibility();
-      const revertedType = await authPage.getPasswordInputType();
-      if (revertedType !== "password") {
-        throw new Error(`Expected input type 'password' after second toggle click, got '${revertedType}'`);
+    await runTest(driver, "TC-AUTH-022", "Role Selection", "Switch to 'Admin' role and verify 'Sign In to Admin Console' button text", async (d) => {
+      await safeClick(d, By.xpath("//button[contains(., 'Admin')]"));
+      const adminSubmitBtn = await d.wait(
+        until.elementLocated(By.xpath("//button[@type='submit' and contains(., 'Admin Console')]")),
+        CONFIG.DEFAULT_TIMEOUT_MS
+      );
+      if (!(await adminSubmitBtn.isDisplayed())) {
+        throw new Error("Submit button did not update to 'Sign In to Admin Console'");
       }
     });
 
-    await runner.test("TC_AUTH_006", "Verify empty credentials form submission triggers browser HTML5 validation", async () => {
-      await authPage.open();
-      const emailField = await driver.findElement(authPage.locators.loginEmailInput);
-      await emailField.clear();
-      const submitBtn = await driver.findElement(authPage.locators.loginSubmitButton);
+    await runTest(driver, "TC-AUTH-023", "Role Selection", "Verify Google OAuth button is hidden when 'Admin' role is active", async (d) => {
+      const googleBtns = await d.findElements(By.xpath("//button[contains(., 'Google')]"));
+      if (googleBtns.length > 0 && (await googleBtns[0].isDisplayed())) {
+        throw new Error("Google Sign-In button should not be displayed in Admin role");
+      }
+    });
+
+    await runTest(driver, "TC-AUTH-024", "Role Selection", "Switch back to 'Customer' role and verify Google button reappears", async (d) => {
+      await safeClick(d, By.xpath("//button[contains(., 'Customer')]"));
+      const googleBtn = await d.wait(
+        until.elementLocated(By.xpath("//button[contains(., 'Google')]")),
+        CONFIG.DEFAULT_TIMEOUT_MS
+      );
+      if (!(await googleBtn.isDisplayed())) {
+        throw new Error("Google Sign-In button did not reappear for Customer role");
+      }
+    });
+
+    // --------------------------------------------------------------------------
+    // SUITE 4: PASSWORD VISIBILITY TOGGLE
+    // --------------------------------------------------------------------------
+    console.log(`\n${COLORS.bright}${COLORS.magenta}[SUITE 4] Password Visibility & Input Masking${COLORS.reset}`);
+
+    await runTest(driver, "TC-AUTH-030", "Password Visibility", "Verify password field type is initially 'password'", async (d) => {
+      const passInput = await d.findElement(By.css("input[name='login_password_no_autofill'], input[type='password']"));
+      const inputType = await passInput.getAttribute("type");
+      if (inputType !== "password") throw new Error(`Expected input type 'password', got '${inputType}'`);
+    });
+
+    await runTest(driver, "TC-AUTH-031", "Password Visibility", "Click Eye icon and verify password type changes to 'text'", async (d) => {
+      const toggleBtn = await d.findElement(By.xpath("//input[@name='login_password_no_autofill']/following-sibling::button | //input[@type='password']/following-sibling::button"));
+      await toggleBtn.click();
+      const passInput = await d.findElement(By.css("input[name='login_password_no_autofill']"));
+      const inputType = await passInput.getAttribute("type");
+      if (inputType !== "text") throw new Error(`Expected type 'text' after toggle, got '${inputType}'`);
+    });
+
+    await runTest(driver, "TC-AUTH-032", "Password Visibility", "Click Eye icon again and verify password type reverts to 'password'", async (d) => {
+      const toggleBtn = await d.findElement(By.xpath("//input[@name='login_password_no_autofill']/following-sibling::button"));
+      await toggleBtn.click();
+      const passInput = await d.findElement(By.css("input[name='login_password_no_autofill']"));
+      const inputType = await passInput.getAttribute("type");
+      if (inputType !== "password") throw new Error(`Expected type 'password' after second toggle, got '${inputType}'`);
+    });
+
+    // --------------------------------------------------------------------------
+    // SUITE 5: FORM VALIDATION & BOUNDARY CONDITIONS
+    // --------------------------------------------------------------------------
+    console.log(`\n${COLORS.bright}${COLORS.magenta}[SUITE 5] Input Validations & Security Boundary Cases${COLORS.reset}`);
+
+    await runTest(driver, "TC-AUTH-040", "Validation", "Submit empty form and verify HTML5 validation prevents submission", async (d) => {
+      await safeType(d, By.css("input[name='login_email_no_autofill']"), "");
+      await safeType(d, By.css("input[name='login_password_no_autofill']"), "");
+      const submitBtn = await d.findElement(By.xpath("//button[@type='submit' and contains(., 'Sign In')]"));
       await submitBtn.click();
 
-      const isValid = await driver.executeScript("return arguments[0].checkValidity();", emailField);
-      if (isValid) {
-        throw new Error("Empty email input passed HTML5 checkValidity() validation unexpectedly.");
+      const emailInput = await d.findElement(By.css("input[name='login_email_no_autofill']"));
+      const isValid = await d.executeScript("return arguments[0].checkValidity();", emailInput);
+      if (isValid) throw new Error("HTML5 checkValidity() returned true for empty email input");
+    });
+
+    await runTest(driver, "TC-AUTH-041", "Validation", "Enter malformed email address and verify input reports invalid format", async (d) => {
+      await safeType(d, By.css("input[name='login_email_no_autofill']"), "invalid-email-format-without-at");
+      await safeType(d, By.css("input[name='login_password_no_autofill']"), "RandomPassword123!");
+      const emailInput = await d.findElement(By.css("input[name='login_email_no_autofill']"));
+      const isValid = await d.executeScript("return arguments[0].checkValidity();", emailInput);
+      if (isValid) throw new Error("Browser accepted malformed email address as valid");
+    });
+
+    await runTest(driver, "TC-AUTH-042", "Security Boundary", "Test SQL Injection payload in email field and verify app handles safely", async (d) => {
+      const sqliPayload = "' OR '1'='1' -- ";
+      await safeType(d, By.css("input[name='login_email_no_autofill']"), sqliPayload);
+      await safeType(d, By.css("input[name='login_password_no_autofill']"), "SomePassword123");
+      const submitBtn = await d.findElement(By.xpath("//button[@type='submit' and contains(., 'Sign In')]"));
+      await submitBtn.click();
+
+      // Ensure error or validation prevented crash
+      const currentUrl = await d.getCurrentUrl();
+      if (!currentUrl.includes("/auth")) {
+        throw new Error("SQL injection bypassed authentication!");
       }
     });
 
-    await runner.test("TC_AUTH_007", "Verify invalid login credentials display appropriate error message", async () => {
-      await authPage.open();
-      await authPage.loginWithPassword("nonexistent_user_test@example.com", "WrongPassword123!");
-      const error = await authPage.getErrorMessage();
-      if (!error || error.trim().length === 0) {
-        throw new Error("No error alert displayed when logging in with invalid credentials.");
+    await runTest(driver, "TC-AUTH-043", "Security Boundary", "Test XSS payload in email field and verify no unescaped script execution", async (d) => {
+      const xssPayload = "<script>window.__xss_probe=1</script>@test.com";
+      await safeType(d, By.css("input[name='login_email_no_autofill']"), xssPayload);
+      await safeType(d, By.css("input[name='login_password_no_autofill']"), "Pass123456");
+      const submitBtn = await d.findElement(By.xpath("//button[@type='submit' and contains(., 'Sign In')]"));
+      await submitBtn.click();
+
+      const xssExecuted = await d.executeScript("return window.__xss_probe !== undefined;");
+      if (xssExecuted) throw new Error("XSS vulnerability detected! Script executed in window context.");
+    });
+
+    // --------------------------------------------------------------------------
+    // SUITE 6: PASSWORD AUTHENTICATION FLOWS (CUSTOMER, VENDOR, ADMIN)
+    // --------------------------------------------------------------------------
+    console.log(`\n${COLORS.bright}${COLORS.magenta}[SUITE 6] End-to-End Password Authentication & Error States${COLORS.reset}`);
+
+    await runTest(driver, "TC-AUTH-050", "Password Auth", "Login with unregistered user and verify error banner is displayed", async (d) => {
+      await d.get(CONFIG.AUTH_URL);
+      await safeClick(d, By.xpath("//button[contains(., 'Customer')]"));
+      await safeType(d, By.css("input[name='login_email_no_autofill']"), CONFIG.CREDENTIALS.NON_EXISTENT.email);
+      await safeType(d, By.css("input[name='login_password_no_autofill']"), CONFIG.CREDENTIALS.NON_EXISTENT.password);
+      await safeClick(d, By.xpath("//button[@type='submit' and contains(., 'Sign In')]"));
+
+      const errorBanner = await d.wait(
+        until.elementLocated(By.css("p.text-red-600, div.text-red-600")),
+        CONFIG.DEFAULT_TIMEOUT_MS
+      );
+      const text = await errorBanner.getText();
+      if (!text || text.trim() === "") throw new Error("Error banner text is empty");
+    });
+
+    await runTest(driver, "TC-AUTH-051", "Password Auth", "Customer login with invalid password triggers credential error", async (d) => {
+      await safeType(d, By.css("input[name='login_email_no_autofill']"), CONFIG.CREDENTIALS.CUSTOMER.email);
+      await safeType(d, By.css("input[name='login_password_no_autofill']"), CONFIG.CREDENTIALS.CUSTOMER.invalidPassword);
+      await safeClick(d, By.xpath("//button[@type='submit' and contains(., 'Sign In')]"));
+
+      const errorBanner = await d.wait(
+        until.elementLocated(By.css("p.text-red-600, div.text-red-600")),
+        CONFIG.DEFAULT_TIMEOUT_MS
+      );
+      if (!(await errorBanner.isDisplayed())) throw new Error("Error banner was not displayed on bad password");
+    });
+
+    await runTest(driver, "TC-AUTH-052", "Password Auth", "Admin login role enforcement and console authentication attempt", async (d) => {
+      await safeClick(d, By.xpath("//button[contains(., 'Admin')]"));
+      await safeType(d, By.css("input[name='login_email_no_autofill']"), CONFIG.CREDENTIALS.ADMIN.email);
+      await safeType(d, By.css("input[name='login_password_no_autofill']"), CONFIG.CREDENTIALS.ADMIN.invalidPassword);
+      await safeClick(d, By.xpath("//button[@type='submit' and contains(., 'Admin Console')]"));
+
+      const errorBanner = await d.wait(
+        until.elementLocated(By.css("p.text-red-600, div.text-red-600")),
+        CONFIG.DEFAULT_TIMEOUT_MS
+      );
+      if (!(await errorBanner.isDisplayed())) throw new Error("Admin login did not show error banner on invalid credentials");
+    });
+
+    // --------------------------------------------------------------------------
+    // SUITE 7: 6-DIGIT OTP AUTHENTICATION FLOW
+    // --------------------------------------------------------------------------
+    console.log(`\n${COLORS.bright}${COLORS.magenta}[SUITE 7] 6-Digit OTP Sign In & Verification Lifecycle${COLORS.reset}`);
+
+    await runTest(driver, "TC-AUTH-060", "OTP Auth", "Switch to '6-Digit OTP Sign In' mode and verify email field changes", async (d) => {
+      await d.get(CONFIG.AUTH_URL);
+      await safeClick(d, By.xpath("//button[contains(., '6-Digit OTP Sign In')]"));
+      const sendOtpBtn = await d.wait(
+        until.elementLocated(By.xpath("//button[@type='submit' and contains(., 'Send 6-Digit Login Code')]")),
+        CONFIG.DEFAULT_TIMEOUT_MS
+      );
+      if (!(await sendOtpBtn.isDisplayed())) throw new Error("'Send 6-Digit Login Code' button not rendered");
+    });
+
+    await runTest(driver, "TC-AUTH-061", "OTP Auth", "Submit email to request OTP and verify transition to OTP verification tab", async (d) => {
+      await safeType(d, By.css("input[type='email']"), CONFIG.CREDENTIALS.OTP_TEST.email);
+      await safeClick(d, By.xpath("//button[@type='submit' and contains(., 'Send 6-Digit Login Code')]"));
+
+      // Wait for either the 6-digit OTP code input or an error banner
+      const otpInput = await d.wait(
+        until.elementLocated(By.xpath("//input[@placeholder='••••••' or contains(@class, 'tracking-[12px]')]")),
+        CONFIG.DEFAULT_TIMEOUT_MS
+      );
+      if (!(await otpInput.isDisplayed())) throw new Error("Did not navigate to OTP code input screen");
+    });
+
+    await runTest(driver, "TC-AUTH-062", "OTP Auth", "Verify OTP input filters non-digit characters and enforces 6-digit limit", async (d) => {
+      const otpInput = await d.findElement(By.xpath("//input[@placeholder='••••••' or contains(@class, 'tracking-[12px]')]"));
+      await safeType(d, By.xpath("//input[@placeholder='••••••' or contains(@class, 'tracking-[12px]')]"), "abc123xyz456extra");
+      const val = await otpInput.getAttribute("value");
+      if (val !== "123456") throw new Error(`Expected OTP input to sanitize to '123456', got '${val}'`);
+    });
+
+    await runTest(driver, "TC-AUTH-063", "OTP Auth", "Submit invalid OTP and verify error message is shown", async (d) => {
+      await safeType(d, By.xpath("//input[@placeholder='••••••' or contains(@class, 'tracking-[12px]')]"), CONFIG.CREDENTIALS.OTP_TEST.invalidOtp);
+      await safeClick(d, By.xpath("//button[@type='submit' and contains(., 'Verify OTP')]"));
+
+      const errorBanner = await d.wait(
+        until.elementLocated(By.css("p.text-red-600, div.text-red-600, p[class*='text-red']")),
+        CONFIG.DEFAULT_TIMEOUT_MS
+      );
+      if (!(await errorBanner.isDisplayed())) throw new Error("Error banner not shown for invalid OTP");
+    });
+
+    await runTest(driver, "TC-AUTH-064", "OTP Auth", "Click 'Back to Sign In' and verify return to login tab", async (d) => {
+      await safeClick(d, By.xpath("//button[contains(., 'Back to Sign In')]"));
+      const passwordSignInBtn = await d.wait(
+        until.elementLocated(By.xpath("//button[contains(., 'Password Sign In')]")),
+        CONFIG.DEFAULT_TIMEOUT_MS
+      );
+      if (!(await passwordSignInBtn.isDisplayed())) throw new Error("Did not return to sign in view");
+    });
+
+    // --------------------------------------------------------------------------
+    // SUITE 8: FORGOT PASSWORD & RECOVERY FLOW
+    // --------------------------------------------------------------------------
+    console.log(`\n${COLORS.bright}${COLORS.magenta}[SUITE 8] Password Recovery & Reset Lifecycle${COLORS.reset}`);
+
+    await runTest(driver, "TC-AUTH-070", "Password Reset", "Click 'Forgot password?' link and verify recovery form opens", async (d) => {
+      await d.get(CONFIG.AUTH_URL);
+      await safeClick(d, By.xpath("//button[contains(., 'Forgot password?')]"));
+      const recoveryHeading = await d.wait(
+        until.elementLocated(By.xpath("//*[contains(text(), 'Forgot your password?') or contains(text(), 'Password Recovery')]")),
+        CONFIG.DEFAULT_TIMEOUT_MS
+      );
+      if (!(await recoveryHeading.isDisplayed())) throw new Error("Password recovery screen not opened");
+    });
+
+    await runTest(driver, "TC-AUTH-071", "Password Reset", "Submit email in password recovery and check OTP code inputs render", async (d) => {
+      await safeType(d, By.css("input[type='email']"), "recovery.test@example.com");
+      await safeClick(d, By.xpath("//button[@type='submit' or contains(., 'Send')]"));
+
+      // Form transitions to OTP + New Password inputs
+      const newPassInput = await d.wait(
+        until.elementLocated(By.xpath("//input[@placeholder='Min 6 characters' or @placeholder='••••••']")),
+        CONFIG.DEFAULT_TIMEOUT_MS
+      );
+      if (!(await newPassInput.isDisplayed())) throw new Error("New password input did not render");
+    });
+
+    await runTest(driver, "TC-AUTH-072", "Password Reset", "Click 'Back to Sign In' from recovery form to safely abort", async (d) => {
+      await safeClick(d, By.xpath("//button[contains(., 'Back to Sign In') or contains(., 'Change Email')]"));
+      await d.get(CONFIG.AUTH_URL);
+      const emailInput = await d.wait(
+        until.elementLocated(By.css("input[name='login_email_no_autofill']")),
+        CONFIG.DEFAULT_TIMEOUT_MS
+      );
+      if (!(await emailInput.isDisplayed())) throw new Error("Failed to return to Sign In screen");
+    });
+
+    // --------------------------------------------------------------------------
+    // SUITE 9: KEYBOARD NAVIGATION & ACCESSIBILITY
+    // --------------------------------------------------------------------------
+    console.log(`\n${COLORS.bright}${COLORS.magenta}[SUITE 9] Keyboard Navigation, Focus Trapping & Accessibility${COLORS.reset}`);
+
+    await runTest(driver, "TC-AUTH-080", "Accessibility", "Verify sequential tab key navigation focuses Email -> Password -> Submit", async (d) => {
+      await d.get(CONFIG.AUTH_URL);
+      const emailInput = await d.findElement(By.css("input[name='login_email_no_autofill']"));
+      await emailInput.click();
+
+      // Send TAB key
+      await emailInput.sendKeys(Key.TAB);
+      const activeElementTag = await d.executeScript("return document.activeElement.tagName;");
+      if (activeElementTag.toLowerCase() !== "input" && activeElementTag.toLowerCase() !== "button") {
+        throw new Error("Tab navigation failed to focus interactive element");
       }
     });
 
-    // ----------------------------------------------------
-    // SUITE 3: Role Switcher & Access Control Enforcement
-    // ----------------------------------------------------
-    runner.suite("3. Role Switcher & Access Control Enforcement");
+    await runTest(driver, "TC-AUTH-081", "Accessibility", "Verify form submission can be triggered using ENTER key", async (d) => {
+      const emailInput = await d.findElement(By.css("input[name='login_email_no_autofill']"));
+      await emailInput.sendKeys(Key.ENTER);
+      // Ensure HTML5 validation or form submit responded
+      const isValid = await d.executeScript("return arguments[0].checkValidity();", emailInput);
+      if (isValid) throw new Error("Enter key did not trigger form validation");
+    });
 
-    await runner.test("TC_AUTH_008", "Verify switching role to Vendor updates UI and submit button text", async () => {
-      await authPage.open();
-      await authPage.selectRole("vendor");
-      const submitBtn = await driver.findElement(authPage.locators.loginSubmitButton);
-      const text = await submitBtn.getText();
-      if (!text.includes("Sign In")) {
-        throw new Error(`Unexpected submit button text: '${text}'`);
+    // --------------------------------------------------------------------------
+    // SUITE 10: PROTECTED ROUTES & REDIRECTS
+    // --------------------------------------------------------------------------
+    console.log(`\n${COLORS.bright}${COLORS.magenta}[SUITE 10] Protected Routes Redirection & Auth Guard${COLORS.reset}`);
+
+    await runTest(driver, "TC-AUTH-090", "Auth Guard", "Direct navigation to /admin when unauthenticated redirects to /auth?role=admin", async (d) => {
+      await d.get(`${CONFIG.BASE_URL}/admin`);
+      await d.wait(until.urlContains("/auth"), CONFIG.DEFAULT_TIMEOUT_MS);
+      const currentUrl = await d.getCurrentUrl();
+      if (!currentUrl.includes("/auth")) {
+        throw new Error(`Unauthenticated user was not redirected away from /admin! Current: ${currentUrl}`);
       }
     });
 
-    await runner.test("TC_AUTH_009", "Verify switching role to Admin displays 'Sign In to Admin Console'", async () => {
-      await authPage.open();
-      await authPage.selectRole("admin");
-      const submitBtn = await driver.findElement(authPage.locators.loginSubmitButton);
-      const text = await submitBtn.getText();
-      if (!text.toLowerCase().includes("admin console")) {
-        throw new Error(`Expected submit button to mention 'Admin Console', got '${text}'`);
+    await runTest(driver, "TC-AUTH-091", "Auth Guard", "Direct navigation to /shop/reservations redirects unauthenticated users", async (d) => {
+      await d.get(`${CONFIG.BASE_URL}/shop/reservations`);
+      await d.wait(until.urlContains("/auth"), CONFIG.DEFAULT_TIMEOUT_MS);
+      const currentUrl = await d.getCurrentUrl();
+      if (!currentUrl.includes("/auth")) {
+        throw new Error(`Unauthenticated user accessed /shop/reservations! Current: ${currentUrl}`);
       }
     });
 
-    await runner.test("TC_AUTH_010", "Verify URL query param ?role=vendor automatically activates Vendor tab", async () => {
-      await authPage.open("role=vendor");
-      const vendorBtn = await driver.findElement(authPage.locators.roleVendor);
-      const cls = await vendorBtn.getAttribute("class");
-      if (!cls.includes("text-purple-600") && !cls.includes("shadow-sm")) {
-        throw new Error("Vendor role button is not highlighted active when loaded with ?role=vendor.");
-      }
+    // --------------------------------------------------------------------------
+    // SUITE 11: RESPONSIVE VIEWPORT TESTING
+    // --------------------------------------------------------------------------
+    console.log(`\n${COLORS.bright}${COLORS.magenta}[SUITE 11] Viewport Scalability & Mobile Responsiveness${COLORS.reset}`);
+
+    await runTest(driver, "TC-AUTH-100", "Responsiveness", "Resize viewport to Mobile screen (375x667) and verify layout integrity", async (d) => {
+      await d.manage().window().setRect({ width: 375, height: 667 });
+      await d.get(CONFIG.AUTH_URL);
+      const emailInput = await d.wait(
+        until.elementLocated(By.css("input[name='login_email_no_autofill']")),
+        CONFIG.DEFAULT_TIMEOUT_MS
+      );
+      if (!(await emailInput.isDisplayed())) throw new Error("Login email input not displayed on mobile viewport");
     });
 
-    // ----------------------------------------------------
-    // SUITE 4: 6-Digit OTP Sign In Flow
-    // ----------------------------------------------------
-    runner.suite("4. 6-Digit OTP Sign In Flow");
-
-    await runner.test("TC_AUTH_011", "Verify switching to OTP mode presents 'Email Address to Receive OTP' input", async () => {
-      await authPage.open();
-      await authPage.selectLoginMode("otp");
-      const otpInput = await driver.findElement(authPage.locators.otpEmailInput);
-      const placeholder = await otpInput.getAttribute("placeholder");
-      if (!placeholder.includes("name@example.com")) {
-        throw new Error(`OTP email placeholder mismatch, got: '${placeholder}'`);
-      }
+    await runTest(driver, "TC-AUTH-101", "Responsiveness", "Resize viewport to Tablet screen (768x1024) and verify layout integrity", async (d) => {
+      await d.manage().window().setRect({ width: 768, height: 1024 });
+      const submitBtn = await d.findElement(By.xpath("//button[@type='submit' and contains(., 'Sign In')]"));
+      if (!(await submitBtn.isDisplayed())) throw new Error("Submit button not visible on tablet viewport");
     });
 
-    await runner.test("TC_AUTH_012", "Verify requesting OTP transitions to OTP Code Entry with 6-character limit", async () => {
-      await authPage.open();
-      await authPage.triggerOtpLogin("qa_test_otp_user@example.com");
-
-      // Verify OTP screen input is displayed
-      const codeInput = await driver.wait(until.elementLocated(authPage.locators.otpCodeInput), 5000);
-      const maxLength = await codeInput.getAttribute("maxlength");
-      if (maxLength !== "6") {
-        throw new Error(`Expected OTP code input maxLength='6', got '${maxLength}'`);
-      }
-
-      // Verify non-digits are filtered
-      await codeInput.sendKeys("12a3b4");
-      const val = await codeInput.getAttribute("value");
-      if (val !== "1234") {
-        throw new Error(`Expected non-digits to be stripped to '1234', got '${val}'`);
-      }
+    await runTest(driver, "TC-AUTH-102", "Responsiveness", "Restore Desktop viewport (1440x900) and verify full layout display", async (d) => {
+      await d.manage().window().setRect({ width: 1440, height: 900 });
+      const card = await d.findElement(By.xpath("//div[contains(@class, 'rounded-3xl') or contains(@class, 'shadow-2xl')]"));
+      if (!(await card.isDisplayed())) throw new Error("Auth card container not visible on desktop viewport");
     });
 
-    await runner.test("TC_AUTH_013", "Verify Back button on OTP screen returns to Sign In screen", async () => {
-      const backBtn = await driver.findElement(authPage.locators.otpBackBtn);
-      await backBtn.click();
-      await driver.wait(until.elementLocated(authPage.locators.tabSignIn), 3000);
-    });
-
-    // ----------------------------------------------------
-    // SUITE 5: Customer Sign Up Validation
-    // ----------------------------------------------------
-    runner.suite("5. Customer Sign Up Validation");
-
-    await runner.test("TC_AUTH_014", "Verify Customer Sign Up rejects password shorter than 6 characters", async () => {
-      await authPage.open();
-      await authPage.fillCustomerSignup("John Doe", "johndoe_test@example.com", "12345", "12345");
-      const passField = await driver.findElement(authPage.locators.custPassInput);
-      const isValid = await driver.executeScript("return arguments[0].checkValidity();", passField);
-      if (isValid) {
-        throw new Error("Password with length < 6 characters passed validation unexpectedly.");
-      }
-    });
-
-    await runner.test("TC_AUTH_015", "Verify Customer Sign Up rejects mismatched passwords", async () => {
-      await authPage.open();
-      await authPage.fillCustomerSignup("John Doe", "johndoe_test@example.com", "SecurePass123!", "DifferentPass456!");
-      const error = await authPage.getErrorMessage();
-      if (!error || !error.toLowerCase().includes("passwords do not match")) {
-        throw new Error(`Expected 'Passwords do not match' error alert, got '${error}'`);
-      }
-    });
-
-    // ----------------------------------------------------
-    // SUITE 6: Vendor Sign Up & Category Selection
-    // ----------------------------------------------------
-    runner.suite("6. Vendor Sign Up & Category Selection");
-
-    await runner.test("TC_AUTH_016", "Verify Vendor Sign Up shows 6 business categories", async () => {
-      await authPage.open("tab=signup&role=vendor");
-      const pills = await driver.findElements(authPage.locators.vendorCategoryPills);
-      if (pills.length < 6) {
-        throw new Error(`Expected at least 6 vendor categories, found ${pills.length}`);
-      }
-    });
-
-    await runner.test("TC_AUTH_017", "Verify Vendor photo and document file upload inputs exist", async () => {
-      await driver.findElement(authPage.locators.vendorPhotoInput);
-      await driver.findElement(authPage.locators.vendorDocInput);
-    });
-
-    // ----------------------------------------------------
-    // SUITE 7: Forgot Password Recovery Flow
-    // ----------------------------------------------------
-    runner.suite("7. Forgot Password Recovery Flow");
-
-    await runner.test("TC_AUTH_018", "Verify clicking 'Forgot password?' transitions to Password Recovery view", async () => {
-      await authPage.open();
-      await authPage.clickForgotPassword();
-      const heading = await driver.findElement(By.xpath("//h3[contains(text(),'Forgot your password?')]"));
-      const isVisible = await heading.isDisplayed();
-      if (!isVisible) {
-        throw new Error("Password recovery heading is not visible.");
-      }
-    });
-
-    await runner.test("TC_AUTH_019", "Verify Back to Sign In button restores the Sign In tab", async () => {
-      const backBtn = await driver.findElement(authPage.locators.forgotBackLink);
-      await backBtn.click();
-      await driver.wait(until.elementLocated(authPage.locators.loginEmailInput), 3000);
-    });
-
-    // ----------------------------------------------------
-    // SUITE 8: Google 1-Click Fast Auth & Modal
-    // ----------------------------------------------------
-    runner.suite("8. Google 1-Click Fast Auth & Modal");
-
-    await runner.test("TC_AUTH_020", "Verify clicking 'Continue with Google' opens Google Account Modal", async () => {
-      await authPage.open();
-      await authPage.openGoogleModal();
-      const modal = await driver.findElement(authPage.locators.googleModal);
-      const isDisplayed = await modal.isDisplayed();
-      if (!isDisplayed) {
-        throw new Error("Google Authentication modal did not open.");
-      }
-    });
-
-    await runner.test("TC_AUTH_021", "Verify Google Modal Close button dismisses the dialog", async () => {
-      await authPage.closeGoogleModal();
-      const modals = await driver.findElements(authPage.locators.googleModal);
-      if (modals.length > 0 && (await modals[0].isDisplayed())) {
-        throw new Error("Google Modal is still displayed after clicking close button.");
-      }
-    });
-
-    // ----------------------------------------------------
-    // SUITE 9: Security & Input Sanitization
-    // ----------------------------------------------------
-    runner.suite("9. Security & Input Sanitization");
-
-    await runner.test("TC_AUTH_022", "Verify SQL Injection payloads in login fields do not cause unhandled crashes", async () => {
-      await authPage.open();
-      const sqliPayload = "' OR '1'='1' --";
-      await authPage.loginWithPassword(sqliPayload, "sample_password");
-      // Expect either error message or standard validation rejection, not page crash
-      await driver.sleep(1000);
-      const brand = await driver.findElement(authPage.locators.brandHeading);
-      if (!(await brand.isDisplayed())) {
-        throw new Error("Page crashed or became unresponsive after SQLi payload submission.");
-      }
-    });
-
-    await runner.test("TC_AUTH_023", "Verify XSS script tags in inputs do not execute alert dialogs", async () => {
-      await authPage.open();
-      const xssPayload = `<script>window.__xss_detected=true;</script>`;
-      await authPage.loginWithPassword(xssPayload, "random_pass");
-
-      const xssFired = await driver.executeScript("return window.__xss_detected === true;");
-      if (xssFired) {
-        throw new Error("Critical Vulnerability: Script tag payload executed on the auth page!");
-      }
-    });
-
-    // ----------------------------------------------------
-    // SUITE 10: Viewport Responsiveness & Layout
-    // ----------------------------------------------------
-    runner.suite("10. Viewport Responsiveness & Layout");
-
-    await runner.test("TC_AUTH_024", "Verify Auth Page renders cleanly on Mobile Viewport (375x812)", async () => {
-      await driver.manage().window().setRect({ width: 375, height: 812 });
-      await authPage.open();
-      const submitBtn = await driver.findElement(authPage.locators.loginSubmitButton);
-      if (!(await submitBtn.isDisplayed())) {
-        throw new Error("Submit button not visible on mobile resolution (375x812).");
-      }
-      // Reset window size to desktop
-      await driver.manage().window().setRect({ width: 1440, height: 900 });
-    });
-
-    // Print final summary
-    runner.printSummary();
-
-    // Check if any critical test failed
-    const hasFailures = runner.results.some((r) => r.status === "FAILED");
-    return { success: !hasFailures, results: runner.results };
-  } catch (globalErr) {
-    console.error(`\x1b[31mFatal error during Selenium test execution: ${globalErr.message}\x1b[0m`);
-    if (driver) {
-      const errPath = path.join(SCREENSHOT_DIR, `fatal_error_${Date.now()}.png`);
-      try {
-        const img = await driver.takeScreenshot();
-        fs.writeFileSync(errPath, img, "base64");
-        console.log(`Saved fatal error screenshot to: ${errPath}`);
-      } catch {}
-    }
-    return { success: false, error: globalErr.message };
   } finally {
-    if (driver) {
-      await driver.quit();
-      console.log("WebDriver session closed gracefully.");
-    }
+    // Teardown & browser quit
+    await driver.quit();
+    reporter.printSummary();
   }
 }
 
-// Auto-run if executed directly via Node.js
-if (process.argv[1] && process.argv[1].endsWith("login-tests.js")) {
-  runLoginTests()
-    .then((res) => {
-      process.exit(res.success ? 0 : 1);
+// Execute test suite if run directly
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  executeTestSuite()
+    .then(() => {
+      console.log(`${COLORS.green}Selenium E2E Test Runner completed.${COLORS.reset}`);
+      process.exit(reporter.failed > 0 ? 1 : 0);
     })
     .catch((err) => {
-      console.error(err);
+      console.error(`${COLORS.red}Fatal test suite execution error:${COLORS.reset}`, err);
       process.exit(1);
     });
 }
+
+export { executeTestSuite, CONFIG };

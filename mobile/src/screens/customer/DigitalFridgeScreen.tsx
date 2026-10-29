@@ -43,6 +43,7 @@ import {
   type ApiPantrySmartAlert,
 } from "../../services/pantry";
 import type { ProductCategory, ApiRecipeResponse } from "../../types";
+import { useRealtimeDeals } from "../../hooks/useRealtimeDeals";
 
 const CATEGORIES: ProductCategory[] = [
   "DAIRY" as ProductCategory,
@@ -97,6 +98,11 @@ export const DigitalFridgeScreen: React.FC<{ navigation: any }> = ({ navigation 
       loadFridgeData();
     }, [loadFridgeData])
   );
+
+  // Synchronize pantry and fridge alerts in real-time
+  useRealtimeDeals({
+    onRefreshNeeded: loadFridgeData,
+  });
 
   const handleAddItem = async () => {
     if (!newItemName.trim()) {

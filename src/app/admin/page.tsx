@@ -52,6 +52,7 @@ import { ConfirmModal } from "@/components/ui/Toast";
 import { useAuth } from "@/contexts/AuthenticationContext";
 import { getErrorMessage } from "@/api/errors";
 import { getPublicApiBaseUrl } from "@/config/env";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import Link from "next/link";
 
 const AdminLocationMap = dynamic(() => import("@/components/AdminLocationMap"), {
@@ -252,6 +253,11 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  // Real-time synchronization: refresh admin stats and shops list on any platform event
+  useWebSocket(() => {
+    void loadData();
+  });
 
   // Auto-polling: If any pending shop has background location verification still in progress, poll every 2.5s
   useEffect(() => {

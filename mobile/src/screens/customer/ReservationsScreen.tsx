@@ -15,6 +15,7 @@ import { PinCodeDisplay } from "../../components/PinCodeDisplay";
 import { EmptyState } from "../../components/EmptyState";
 import { getMyReservations } from "../../services/reservations";
 import { getMyOrders } from "../../services/orders";
+import { useRealtimeDeals } from "../../hooks/useRealtimeDeals";
 import type { ApiReservation, ApiOrder } from "../../types";
 
 interface ReservationsScreenProps {
@@ -44,9 +45,17 @@ export const ReservationsScreen: React.FC<ReservationsScreenProps> = ({ navigati
     }
   }, []);
 
+  useRealtimeDeals({
+    onRefreshNeeded: loadData,
+  });
+
   useFocusEffect(
     useCallback(() => {
       loadData();
+      const interval = setInterval(() => {
+        loadData();
+      }, 4000);
+      return () => clearInterval(interval);
     }, [loadData])
   );
 

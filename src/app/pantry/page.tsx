@@ -32,6 +32,7 @@ import {
 } from "@/services/pantry";
 import { ShopperLayout } from "@/components/layout/ShopperLayout";
 import { ScrollToTop } from "@/components/ui/ScrollToTop";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import type { ProductCategory } from "@/types/product";
 import type { ApiRecipeResponse, RecipeIngredientItem, RecipeStep } from "@/types/recipe";
 
@@ -104,6 +105,11 @@ export default function PantryPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Synchronize digital fridge and pantry in real-time across Web and Mobile
+  useWebSocket(() => {
+    void loadData();
+  });
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();

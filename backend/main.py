@@ -37,6 +37,8 @@ logger = logging.getLogger("expirygo.api")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    import asyncio
+    manager.loop = asyncio.get_running_loop()
     start = time.perf_counter()
     init_db()
     elapsed = time.perf_counter() - start

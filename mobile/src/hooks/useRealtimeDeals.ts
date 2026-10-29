@@ -45,6 +45,9 @@ export function useRealtimeDeals(options: RealtimeDealsOptions = {}) {
             } else if (data.type === "delete_deal" && data.product_id) {
               optionsRef.current.onDeleteDeal?.(data.product_id);
               optionsRef.current.onRefreshNeeded?.();
+            } else {
+              // Any platform event (new_order, order_status_changed, order_payment_verified, reservation_status_changed, shop_approval_status, etc.)
+              optionsRef.current.onRefreshNeeded?.();
             }
           } catch (err) {
             console.log("WebSocket parse notice:", err);

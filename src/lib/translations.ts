@@ -106,7 +106,6 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     "common.close": "Close",
     "auth.login": "Sign In",
     "auth.register": "Create Account",
-    "auth.demo_login": "Quick Demo Login",
   },
   hi: {
     // Brand & Hero
@@ -198,7 +197,6 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     "common.close": "बंद करें",
     "auth.login": "लॉग इन करें",
     "auth.register": "खाता बनाएं",
-    "auth.demo_login": "क्विक डेमो लॉगिन",
   },
   ta: {
     // Brand & Hero
@@ -290,7 +288,6 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     "common.close": "மூடுக",
     "auth.login": "உள்நுழைய",
     "auth.register": "பதிவு செய்ய",
-    "auth.demo_login": "டெமோ கணக்கு",
   },
   te: {
     // Brand & Hero
@@ -382,7 +379,6 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     "common.close": "మూసివేయి",
     "auth.login": "లాగిన్",
     "auth.register": "ఖాతా సృష్టించండి",
-    "auth.demo_login": "డెమో లాగిన్",
   },
   kn: {
     // Brand & Hero
@@ -474,6 +470,5 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     "common.close": "ಮುಚ್ಚಿ",
     "auth.login": "ಲಾಗಿನ್",
     "auth.register": "ಖಾತೆ ರಚಿಸಿ",
-    "auth.demo_login": "ಡೆಮೊ ಲಾಗಿನ್",
   },
 };

@@ -49,6 +49,7 @@ import {
 } from "../../services/admin";
 import { getApiBaseUrl } from "../../config/env";
 import { MobileAdminLocationMap } from "../../components/MobileAdminLocationMap";
+import { useRealtimeDeals } from "../../hooks/useRealtimeDeals";
 import type { AdminShop, AdminStats } from "../../types";
 
 interface AdminDashboardScreenProps {
@@ -99,6 +100,10 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navi
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useRealtimeDeals({
+    onRefreshNeeded: loadData,
+  });
 
   const onRefresh = () => {
     setRefreshing(true);

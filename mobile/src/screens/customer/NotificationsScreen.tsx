@@ -13,6 +13,7 @@ import { Colors, Radius, Spacing, Typography } from "../../theme";
 import { EmptyState } from "../../components/EmptyState";
 import { getNotifications, markAllNotificationsAsRead } from "../../services/notifications";
 import type { ApiNotification } from "../../types";
+import { useRealtimeDeals } from "../../hooks/useRealtimeDeals";
 
 interface NotificationsScreenProps {
   navigation: any;
@@ -38,6 +39,11 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ naviga
   useEffect(() => {
     fetchNotifs();
   }, []);
+
+  // Real-time synchronization for new notifications
+  useRealtimeDeals({
+    onRefreshNeeded: fetchNotifs,
+  });
 
   const handleMarkRead = async () => {
     try {

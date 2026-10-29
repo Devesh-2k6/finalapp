@@ -58,12 +58,13 @@ def wait_for_port(port, timeout=30):
 def free_port(port):
     if sys.platform == "win32":
         try:
-            out = subprocess.getoutput(f'netstat -ano | findstr :{port}')
-            pids = set(re.findall(r'\s+(\d+)\r?$', out, re.M))
+            cmd = f'powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess"'
+            out = subprocess.check_output(cmd, shell=True, text=True, stderr=subprocess.DEVNULL)
             my_pid = str(os.getpid())
-            for pid in pids:
-                if pid and pid != '0' and pid != my_pid:
-                    subprocess.run(['taskkill', '/F', '/PID', pid], capture_output=True)
+            for line in out.strip().splitlines():
+                pid = line.strip()
+                if pid and pid != "0" and pid != my_pid:
+                    subprocess.run(["taskkill", "/F", "/PID", pid], capture_output=True)
         except Exception:
             pass
 
@@ -81,11 +82,11 @@ def main():
     print("  • Products in DB:  0 (Ready for real merchant listings)")
     print("=" * 70)
 
-    # Step 1: Ensure Database Schema Ready
-    print("\n[1/4] Ensuring Database Schema Ready (Zero Accounts / Real Testing)...")
+    # Step 1: Ensure Database Schema Ready (Zero Demo Data)
+    print("\n[1/4] Ensuring Database Schema Ready (Zero Demo Data / Clean Slate)...")
     try:
         subprocess.run(
-            [sys.executable, "-c", "import sys; sys.path.insert(0, 'backend'); from seed_data import ensure_ecosystem_ready; ensure_ecosystem_ready()"],
+            [sys.executable, "-c", "import sys; sys.path.insert(0, 'backend'); from setup_production_admin import setup_production_admin; setup_production_admin()"],
             cwd=str(ROOT_DIR),
             check=False
         )
@@ -132,7 +133,7 @@ def main():
     # Step 4: Launch Optional Cloudflare Web Tunnel for Global Internet Access
     print("\n[4/4] Starting Cloudflare Public HTTPS Web Tunnel for Global Access...")
     tunnel_proc = subprocess.Popen(
-        ["npx", "-y", "cloudflared", "tunnel", "--url", "http://localhost:8000"],
+        ["npx", "-y", "cloudflared", "tunnel", "--protocol", "http2", "--url", "http://127.0.0.1:8000"],
         shell=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -149,6 +150,10 @@ def main():
             break
         if time.time() - start_time > 35:
             break
+
+    # Stream remaining tunnel logs without blocking pipe buffer
+    t3 = threading.Thread(target=stream_output, args=(tunnel_proc, "TUNNEL", "35"), daemon=True)
+    t3.start()
 
     print("\n" + "=" * 70)
     print("🎉 EXPIRYGO WEB HOST IS LIVE & ACCESSIBLE!")

@@ -904,7 +904,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   overlayArea: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: "center",
     alignItems: "center",
   },

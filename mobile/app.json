@@ -41,7 +41,9 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow Meeva to use your location to calculate distance to deals."
         }
-      ]
+      ],
+      "expo-font",
+      "expo-status-bar"
     ]
   }
 }

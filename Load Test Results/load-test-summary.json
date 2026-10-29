@@ -1,0 +1,108 @@
+{
+  "overall": {
+    "vus": 100,
+    "duration_sec": 60.91130089759827,
+    "total_requests": 5700,
+    "successful_requests": 5700,
+    "failed_requests": 0,
+    "success_rate_pct": 100.0,
+    "rps": 93.6,
+    "success_rps": 93.6,
+    "latency_min_ms": 73.98,
+    "latency_avg_ms": 1002.79,
+    "latency_median_p50_ms": 702.94,
+    "latency_p90_ms": 2186.18,
+    "latency_p95_ms": 2864.7,
+    "latency_p99_ms": 4604.16,
+    "latency_max_ms": 7957.59
+  },
+  "endpoints": [
+    {
+      "name": "Browse Products Catalog",
+      "method": "GET",
+      "count": 1705,
+      "rps": 28.0,
+      "share_pct": 29.9,
+      "avg_ms": 990.17,
+      "min_ms": 80.06,
+      "p50_ms": 681.7,
+      "p95_ms": 2861.78,
+      "max_ms": 7272.01,
+      "errors": 0,
+      "error_pct": 0.0
+    },
+    {
+      "name": "Health Probe",
+      "method": "GET",
+      "count": 1192,
+      "rps": 19.6,
+      "share_pct": 20.9,
+      "avg_ms": 1020.48,
+      "min_ms": 73.98,
+      "p50_ms": 710.15,
+      "p95_ms": 2950.24,
+      "max_ms": 7411.06,
+      "errors": 0,
+      "error_pct": 0.0
+    },
+    {
+      "name": "Database Readiness",
+      "method": "GET",
+      "count": 858,
+      "rps": 14.1,
+      "share_pct": 15.1,
+      "avg_ms": 1027.78,
+      "min_ms": 81.28,
+      "p50_ms": 722.35,
+      "p95_ms": 2916.97,
+      "max_ms": 7037.82,
+      "errors": 0,
+      "error_pct": 0.0
+    },
+    {
+      "name": "Filter Bakery Products",
+      "method": "GET",
+      "count": 843,
+      "rps": 13.8,
+      "share_pct": 14.8,
+      "avg_ms": 1012.9,
+      "min_ms": 84.29,
+      "p50_ms": 720.61,
+      "p95_ms": 2854.84,
+      "max_ms": 6082.86,
+      "errors": 0,
+      "error_pct": 0.0
+    },
+    {
+      "name": "Browse Partner Shops",
+      "method": "GET",
+      "count": 577,
+      "rps": 9.5,
+      "share_pct": 10.1,
+      "avg_ms": 973.76,
+      "min_ms": 76.51,
+      "p50_ms": 676.45,
+      "p95_ms": 2775.54,
+      "max_ms": 7889.61,
+      "errors": 0,
+      "error_pct": 0.0
+    },
+    {
+      "name": "Platform Impact Metrics",
+      "method": "GET",
+      "count": 525,
+      "rps": 8.6,
+      "share_pct": 9.2,
+      "avg_ms": 978.49,
+      "min_ms": 86.64,
+      "p50_ms": 729.82,
+      "p95_ms": 2631.6,
+      "max_ms": 7957.59,
+      "errors": 0,
+      "error_pct": 0.0
+    }
+  ],
+  "status_distribution": {
+    "200": 5700
+  }
+}

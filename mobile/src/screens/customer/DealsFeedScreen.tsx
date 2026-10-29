@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   promoOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(18, 24, 38, 0.45)",
   },
   promoContent: {

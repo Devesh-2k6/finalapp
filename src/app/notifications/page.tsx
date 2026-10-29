@@ -12,6 +12,7 @@ import { getErrorMessage } from "@/api/errors";
 import { useAuth } from "@/contexts/AuthenticationContext";
 import { ShopperLayout } from "@/components/layout/ShopperLayout";
 import { apiRequest } from "@/api/client";
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 export default function Notifications() {
   const router = useRouter();
@@ -40,6 +41,13 @@ export default function Notifications() {
       setLoading(false);
     }
   }, [user]);
+
+  // Real-time synchronization for new notifications
+  useWebSocket(() => {
+    if (user) {
+      void fetchNotifications();
+    }
+  });
 
   const handleMarkAllAsRead = async () => {
     try {

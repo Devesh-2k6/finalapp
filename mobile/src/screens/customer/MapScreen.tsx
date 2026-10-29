@@ -30,6 +30,7 @@ import { Colors, Radius, Shadows, Spacing, Typography } from "../../theme";
 import { listShops, ShopWithDescription } from "../../services/shops";
 import { getProducts } from "../../services/products";
 import type { ApiProduct } from "../../types";
+import { useRealtimeDeals } from "../../hooks/useRealtimeDeals";
 
 interface MapScreenProps {
   navigation: any;
@@ -136,6 +137,11 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
     fetchUserGPS();
     loadData();
   }, [loadData]);
+
+  // Synchronize map pins, shops, and deals in real-time
+  useRealtimeDeals({
+    onRefreshNeeded: loadData,
+  });
 
   // Search Address / Landmark via OpenStreetMap Geocoding
   const handleSearchGeocode = async () => {

@@ -4,6 +4,7 @@ import useSWR from "swr";
 import { getErrorMessage } from "@/api/errors";
 import { getProducts, type GetProductsParams } from "@/services/products";
 import type { ApiProduct, ProductCategory } from "@/types/product";
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 export type ProductsLoadStatus = "loading" | "success" | "empty" | "error";
 
@@ -41,6 +42,11 @@ export function useProducts(options?: {
     refreshInterval: options?.refreshInterval ?? 30000,
     revalidateOnFocus: true,
     revalidateOnReconnect: true,
+  });
+
+  // Automatically synchronize in real-time when any deal/reservation changes on Mobile or Web
+  useWebSocket(() => {
+    mutate();
   });
 
   let status: ProductsLoadStatus = "success";

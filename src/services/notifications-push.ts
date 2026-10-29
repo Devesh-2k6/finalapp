@@ -42,7 +42,7 @@ async function syncWebPushSubscription(registration: ServiceWorkerRegistration) 
   try {
     let sub = await registration.pushManager.getSubscription();
     if (!sub) {
-      // Local/demo fallback token identifier if VAPID server key is not configured
+      // Local fallback token identifier if VAPID server key is not configured
       const token = `web-sub-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       await saveDeviceToken(token);
     } else {

@@ -20,4 +20,4 @@ backend/*.pyc
 static/uploads/
 backend/static/uploads/
 ~$*
-
+.idea/

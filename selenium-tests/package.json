@@ -1,30 +1,27 @@
 {
-  "name": "meeva-selenium-tests",
+  "name": "expirygo-selenium-e2e-tests",
   "version": "1.0.0",
-  "description": "End-to-End Selenium WebDriver Automated Test Suite for Meeva Web Frontend",
+  "description": "Comprehensive Selenium E2E automated test suite for ExpiryGo Web Frontend Authentication & Role Management",
   "main": "tests/login-tests.js",
   "type": "module",
   "scripts": {
     "test": "node tests/login-tests.js",
-    "test:headed": "set HEADLESS=false && node tests/login-tests.js",
-    "test:chrome": "set BROWSER=chrome && node tests/login-tests.js",
-    "test:firefox": "set BROWSER=firefox && node tests/login-tests.js",
-    "test:edge": "set BROWSER=MicrosoftEdge && node tests/login-tests.js"
+    "test:headless": "HEADLESS=true node tests/login-tests.js",
+    "generate:matrix": "python generate_test_matrix_excel.py"
   },
   "keywords": [
     "selenium",
+    "e2e",
+    "testing",
+    "automation",
     "webdriver",
-    "e2e-testing",
-    "meeva",
-    "auth-testing",
-    "regression"
+    "expirygo",
+    "authentication"
   ],
-  "author": "Meeva QA Automation Team",
+  "author": "ExpiryGo QA Team",
   "license": "ISC",
   "dependencies": {
-    "selenium-webdriver": "^4.27.0"
-  },
-  "devDependencies": {
-    "chromedriver": "^131.0.0"
+    "chromedriver": "^133.0.0",
+    "selenium-webdriver": "^4.28.0"
   }
 }

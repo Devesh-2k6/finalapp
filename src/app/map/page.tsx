@@ -19,6 +19,7 @@ import { getSafeImageUrl } from "@/lib/images";
 import { fetchIpGeolocation } from "@/lib/geolocation";
 import { ShopperLayout } from "@/components/layout/ShopperLayout";
 import { ScrollToTop } from "@/components/ui/ScrollToTop";
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 const MapComponent = dynamic(() => import("@/components/MapComponent"), {
   ssr: false,
@@ -147,6 +148,11 @@ export default function MapDiscovery() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Synchronize map stores and surplus deals in real-time
+  useWebSocket(() => {
+    void load();
+  });
 
   // Handle direct address / area / pincode geocoding in floating search bar
   const handleSearchGeocode = async (e?: React.FormEvent) => {

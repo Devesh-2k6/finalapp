@@ -115,7 +115,7 @@ export default function App() {
       <ErrorBoundary>
         <LanguageProvider>
           <AuthProvider>
-            <StatusBar style="light" backgroundColor="#0B0F19" />
+            <StatusBar style="light" />
             <RootNavigator />
           </AuthProvider>
         </LanguageProvider>

@@ -13,9 +13,15 @@ class ConnectionManager:
         self.redis_client: Optional[aioredis.Redis] = None
         self.pubsub_task: Optional[asyncio.Task] = None
         self.channel_name: str = "expirygo:realtime:events"
+        self.loop: Optional[asyncio.AbstractEventLoop] = None
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
+        if not self.loop or self.loop.is_closed():
+            try:
+                self.loop = asyncio.get_running_loop()
+            except Exception:
+                pass
         self.active_connections.add(websocket)
         logger.info(f"New WebSocket connection. Total active: {len(self.active_connections)}")
 
@@ -91,9 +97,15 @@ class ConnectionManager:
         try:
             try:
                 loop = asyncio.get_running_loop()
-                loop.create_task(self.broadcast(message))
+                if loop and loop.is_running():
+                    loop.create_task(self.broadcast(message))
+                    return
             except RuntimeError:
                 pass
+
+            if self.loop and self.loop.is_running():
+                asyncio.run_coroutine_threadsafe(self.broadcast(message), self.loop)
+                return
         except Exception as e:
             logger.warning(f"Could not dispatch WS broadcast: {e}")
 
