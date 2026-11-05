@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Flame, Compass, ShoppingBag, User, Sparkles, Bell, QrCode } from "lucide-react";
+import { Flame, Compass, ShoppingBag, User, Sparkles, Bell } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthenticationContext";
@@ -31,14 +31,13 @@ export function BottomNav() {
   const NAV_ITEMS = [
     { href: "/deals", label: "Deals", icon: Flame },
     { href: "/map", label: "Explore", icon: Compass },
-    { href: "/scanner", label: "Scanner", icon: QrCode },
     { href: "/pantry", label: "Fridge", icon: Sparkles },
     { href: "/reservations", label: "Pickups", icon: ShoppingBag },
   ];
 
   return (
     <div className="fixed bottom-6 inset-x-0 z-50 px-4 pointer-events-none flex justify-center lg:hidden">
-      <nav className="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-2xl border border-zinc-200/80 dark:border-zinc-800 rounded-full p-1.5 shadow-xl shadow-purple-900/10 pointer-events-auto flex items-center gap-1 max-w-md w-full justify-between">
+      <nav className="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-2xl border border-zinc-200/80 dark:border-zinc-800 rounded-full p-1.5 shadow-xl shadow-purple-900/10 pointer-events-auto flex items-center gap-1 max-w-md w-full justify-around">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const active = pathname === href;
           const showBadge = href === "/notifications" && unread > 0;
