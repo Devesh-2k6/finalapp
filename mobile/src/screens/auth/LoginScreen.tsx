@@ -341,14 +341,16 @@ export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) =>
       setOtpIdentifier(idToSend);
       setOtpCooldown(res.expires_in_seconds || 60);
       setTab("otp");
-      const code = res.dev_code || "123456";
-      setOtpCode(code);
+      setOtpCode(""); // Start EMPTY - customer enters OTP from email
+      if (res.dev_code) {
+        setForgotDevCode(res.dev_code);
+      }
       setOtpStatusMsg({
         type: "success",
-        text: `6-digit verification code sent to ${idToSend}. Code: ${code}`,
+        text: res.message || `6-digit verification code sent to ${idToSend}.`,
       });
     } catch (err: any) {
-      setError(err?.message || "Failed to dispatch OTP code. Please check your network and backend connection.");
+      setError(err?.message || "Failed to dispatch OTP code. Please verify email and internet connection.");
     } finally {
       setSendingOtp(false);
     }
@@ -375,6 +377,17 @@ export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) =>
         role: roleMode,
         intent,
       });
+
+      const actualRole = res.user.role === "ADMIN" ? "admin" : (res.user.role === "VENDOR" || res.user.is_shop_owner) ? "vendor" : "customer";
+      if (roleMode === "customer" && actualRole === "vendor") {
+        setError("This email is registered as a Merchant/Vendor account. Please switch to Vendor to sign in.");
+        return;
+      }
+      if (roleMode === "vendor" && actualRole === "customer") {
+        setError("This email is registered as a Shopper/Customer account. Please switch to Customer to sign in.");
+        return;
+      }
+
       await loginWithSession(res, isVendorMode ? "shop" : "customer");
     } catch (err: any) {
       setError(err?.message || "Invalid or expired verification code.");
@@ -396,12 +409,12 @@ export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) =>
           setSubmitting(false);
           return;
         }
-        if (customerPassword && customerPassword.length < 6) {
+        if (!customerPassword || customerPassword.length < 6) {
           setError("Password must be at least 6 characters long.");
           setSubmitting(false);
           return;
         }
-        if (customerPassword && customerPassword !== customerConfirmPassword) {
+        if (customerPassword !== customerConfirmPassword) {
           setError("Passwords do not match. Please re-enter your password.");
           setSubmitting(false);
           return;
@@ -412,42 +425,24 @@ export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) =>
           const res = await customerSignup({
             name: customerName.trim(),
             email: cleanEmail,
-            password: customerPassword.trim() || undefined,
+            password: customerPassword.trim(),
           });
 
-          if (customerPassword && customerPassword.trim()) {
-            try {
-              const loginRes = await apiLogin({ email: cleanEmail, password: customerPassword.trim() });
-              await loginWithSession(loginRes, "customer");
-              return;
-            } catch {
-              // fallback
-            }
-          }
-
+          // Mandatory OTP verification transition (100% same as Vercel)
           setOtpIdentifier(cleanEmail);
           setOtpSourceTab("signup");
           setOtpCooldown(res.expires_in_seconds || 60);
-          setOtpCode(res.dev_code || "123456");
+          setOtpCode(""); // Start EMPTY - customer MUST verify with OTP
+          if (res.dev_code) {
+            setForgotDevCode(res.dev_code);
+          }
           setTab("otp");
           setOtpStatusMsg({
             type: "success",
-            text: `6-digit verification code sent to ${cleanEmail}.`,
+            text: res.message || `6-digit verification code sent to ${cleanEmail}. Please enter the code from your email to activate your account.`,
           });
         } catch (apiErr: any) {
-          // Offline fallback
-          await loginWithSession({
-            access_token: "offline-mobile-token-" + Date.now(),
-            user: {
-              id: "cust-" + Date.now(),
-              email: cleanEmail,
-              name: customerName.trim() || "Customer",
-              role: "CUSTOMER",
-              is_shop_owner: false,
-              email_verified: true,
-            },
-          }, "customer");
-          return;
+          setError(apiErr?.message || "Failed to process customer registration.");
         }
       } else {
         // Vendor Signup
@@ -456,12 +451,12 @@ export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) =>
           setSubmitting(false);
           return;
         }
-        if (vendorPassword && vendorPassword.length < 6) {
+        if (!vendorPassword || vendorPassword.length < 6) {
           setError("Password must be at least 6 characters long.");
           setSubmitting(false);
           return;
         }
-        if (vendorPassword && vendorPassword !== vendorConfirmPassword) {
+        if (vendorPassword !== vendorConfirmPassword) {
           setError("Passwords do not match. Please re-enter your password.");
           setSubmitting(false);
           return;
@@ -476,7 +471,7 @@ export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) =>
             category: vendorCategory,
             email: cleanEmail,
             phone_number: vendorPhone.trim(),
-            password: vendorPassword.trim() || undefined,
+            password: vendorPassword.trim(),
             photo_url: finalPhoto,
             document_url: finalDoc,
             address: vendorAddress.trim() || undefined,
@@ -484,38 +479,21 @@ export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) =>
             longitude: parseFloat(vendorLng) || 80.2707,
           });
 
-          if (vendorPassword && vendorPassword.trim()) {
-            try {
-              const loginRes = await apiLogin({ email: cleanEmail, password: vendorPassword.trim() });
-              await loginWithSession(loginRes, "shop");
-              return;
-            } catch {
-              // fallback
-            }
-          }
-
+          // Mandatory OTP verification transition (100% same as Vercel)
           setOtpIdentifier(cleanEmail);
           setOtpSourceTab("signup");
           setOtpCooldown(res.expires_in_seconds || 60);
-          setOtpCode(res.dev_code || "123456");
+          setOtpCode(""); // Start EMPTY - vendor MUST verify with OTP
+          if (res.dev_code) {
+            setForgotDevCode(res.dev_code);
+          }
           setTab("otp");
           setOtpStatusMsg({
             type: "success",
-            text: `Shop registered! 6-digit code sent to ${cleanEmail}.`,
+            text: res.message || `Shop registered! 6-digit code sent to ${cleanEmail}. Please enter the code to activate your shop.`,
           });
         } catch (apiErr: any) {
-          await loginWithSession({
-            access_token: "offline-mobile-token-" + Date.now(),
-            user: {
-              id: "vendor-" + Date.now(),
-              email: cleanEmail,
-              name: vendorShopName.trim() || "Store Partner",
-              role: "VENDOR",
-              is_shop_owner: true,
-              email_verified: true,
-            },
-          }, "shop");
-          return;
+          setError(apiErr?.message || "Failed to complete shop registration.");
         }
       }
     } catch (err: any) {
@@ -535,44 +513,45 @@ export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) =>
     setSubmitting(true);
     try {
       const cleanEmail = loginEmail.trim().toLowerCase();
-      await authLogin({ email: cleanEmail, password: loginPassword });
+      const res = await apiLogin({ email: cleanEmail, password: loginPassword });
+
+      const actualRole = res.user.role === "ADMIN" ? "admin" : (res.user.role === "VENDOR" || res.user.is_shop_owner) ? "vendor" : "customer";
+
+      if (roleMode === "customer" && actualRole === "vendor") {
+        setError("This email is registered as a Merchant/Vendor account. Please switch to the Vendor tab above to sign in.");
+        setSubmitting(false);
+        return;
+      }
+      if (roleMode === "vendor" && actualRole === "customer") {
+        setError("This email is registered as a Shopper/Customer account. Please switch to the Customer tab above to sign in.");
+        setSubmitting(false);
+        return;
+      }
+      if (roleMode === "admin" && actualRole !== "admin") {
+        setError("This account does not have Administrator privileges. Please switch to Customer or Vendor to sign in.");
+        setSubmitting(false);
+        return;
+      }
+
+      await loginWithSession(res, actualRole === "vendor" ? "shop" : actualRole);
     } catch (err: any) {
       const errMsg = err?.message || "Failed to sign in. Please check credentials.";
       if (
         errMsg.toLowerCase().includes("not verified") ||
         errMsg.toLowerCase().includes("verify your email") ||
         errMsg.toLowerCase().includes("via otp") ||
-        errMsg.toLowerCase().includes("with otp")
+        errMsg.toLowerCase().includes("with otp") ||
+        errMsg.toLowerCase().includes("verification code")
       ) {
         const targetEmail = loginEmail.trim().toLowerCase();
         setOtpIdentifier(targetEmail);
         setOtpSourceTab("login");
         setTab("otp");
-        setOtpCode("123456");
+        setOtpCode(""); // Start EMPTY - user must enter OTP
         setOtpStatusMsg({
           type: "success",
           text: errMsg,
         });
-      } else if (
-        errMsg.toLowerCase().includes("failed to fetch") ||
-        errMsg.toLowerCase().includes("network request failed") ||
-        errMsg.toLowerCase().includes("cannot reach") ||
-        errMsg.toLowerCase().includes("offline") ||
-        errMsg.toLowerCase().includes("503")
-      ) {
-        const cleanEmail = loginEmail.trim().toLowerCase();
-        const role = roleMode === "vendor" ? "shop" : "customer";
-        await loginWithSession({
-          access_token: "offline-mobile-token-" + Date.now(),
-          user: {
-            id: "user-" + Date.now(),
-            email: cleanEmail || "demo@example.com",
-            name: cleanEmail ? cleanEmail.split("@")[0] : (roleMode === "vendor" ? "Demo Store" : "Demo Customer"),
-            role: roleMode === "vendor" ? "VENDOR" : "CUSTOMER",
-            is_shop_owner: roleMode === "vendor",
-            email_verified: true,
-          },
-        }, role);
       } else {
         setError(errMsg);
       }
@@ -1266,6 +1245,31 @@ export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) =>
           {/* ============================================================ */}
           {tab === "otp" && (
             <View style={styles.inputsStack}>
+              <View style={{ marginBottom: 4 }}>
+                <Text style={{ fontSize: 13, color: Colors.textSecondary }}>
+                  Verification code sent to{" "}
+                  <Text style={{ color: Colors.textPrimary, fontWeight: "700" }}>{otpIdentifier}</Text>
+                </Text>
+              </View>
+
+              {/* Dev Code Quick Auto-Fill Helper if present */}
+              {forgotDevCode && (
+                <View
+                  style={[
+                    styles.statusBanner,
+                    styles.statusBannerSuccess,
+                    { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+                  ]}
+                >
+                  <Text style={[styles.statusBannerText, { color: Colors.primaryBright, fontWeight: "700" }]}>
+                    Dev Code: {forgotDevCode}
+                  </Text>
+                  <TouchableOpacity onPress={() => setOtpCode(forgotDevCode)}>
+                    <Text style={{ fontSize: 11, fontWeight: "800", color: Colors.primaryBright }}>FILL CODE</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>6-DIGIT VERIFICATION CODE</Text>
                 <View style={[styles.inputBox, { justifyContent: "center" }]}>

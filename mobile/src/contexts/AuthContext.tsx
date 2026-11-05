@@ -41,6 +41,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (storedToken) {
+          if (storedToken.startsWith("offline-")) {
+            await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
+            await AsyncStorage.removeItem(USER_KEY);
+            setToken(null);
+            setUser(null);
+            return;
+          }
+
           try {
             const freshUser = await getMe();
             setToken(storedToken);
@@ -50,23 +58,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               setRoleIntentState("admin");
             }
           } catch (err: any) {
-            // Stored token offline fallback
-            if (storedUser) {
-              try {
-                setUser(JSON.parse(storedUser));
-                setToken(storedToken);
-              } catch {
-                await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
-                await AsyncStorage.removeItem(USER_KEY);
-                setToken(null);
-                setUser(null);
-              }
-            } else {
-              await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
-              await AsyncStorage.removeItem(USER_KEY);
-              setToken(null);
-              setUser(null);
-            }
+            // Clear invalid or expired session
+            await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
+            await AsyncStorage.removeItem(USER_KEY);
+            setToken(null);
+            setUser(null);
           }
         }
       } catch (err) {
