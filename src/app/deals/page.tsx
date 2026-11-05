@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -181,7 +181,11 @@ export default function CustomerDealsPage() {
     if (activeFilter === "AI Recommended ✨") {
       setLoadingRecommended(true);
       getRecommendedProducts()
-        .then(setRecommendedProducts)
+        .then((prods) => {
+          if (Array.isArray(prods) && prods.length > 0) {
+            setRecommendedProducts(prods);
+          }
+        })
         .catch(console.error)
         .finally(() => setLoadingRecommended(false));
     }
@@ -630,17 +634,39 @@ export default function CustomerDealsPage() {
   const isAiRecommended = activeFilter === "AI Recommended ✨";
   const isSavedFilter = activeFilter === "Saved ❤️";
   const isRecipeResult = isDeepSearchActive && deepSearchData?.recipe_mode === true;
-  const rawProducts = isAiRecommended
-    ? recommendedProducts
-    : isSavedFilter
-    ? (isDeepSearchActive && deepSearchData
-      ? (deepSearchData.recipe_mode ? deepSearchData.matched_deals : deepSearchData.products)
-      : standardProducts).filter((p) => favorites.has(p.id))
-    : isDeepSearchActive && deepSearchData
-    ? (deepSearchData.recipe_mode ? deepSearchData.matched_deals : deepSearchData.products)
-    : standardProducts;
 
-  const displayProducts = rawProducts.filter((product) => {
+  // Algorithmic client fallback if API is still loading or populating
+  const aiRankedStandard = useMemo(() => {
+    return [...standardProducts].sort((a, b) => {
+      const discA = a.original_price > 0 ? (a.original_price - a.discount_price) / a.original_price : 0.3;
+      const discB = b.original_price > 0 ? (b.original_price - b.discount_price) / b.original_price : 0.3;
+      return discB - discA;
+    });
+  }, [standardProducts]);
+
+  const rawProducts: ApiProduct[] = (
+    isAiRecommended
+      ? (recommendedProducts.length > 0 ? recommendedProducts : aiRankedStandard)
+      : isSavedFilter
+      ? (isDeepSearchActive && deepSearchData
+        ? (deepSearchData.recipe_mode ? deepSearchData.matched_deals : deepSearchData.products)
+        : standardProducts).filter((p) => favorites.has(p.id))
+      : isDeepSearchActive && deepSearchData
+      ? (deepSearchData.recipe_mode ? deepSearchData.matched_deals : deepSearchData.products)
+      : standardProducts
+  ) as ApiProduct[];
+
+  const displayProducts = rawProducts.filter((product: ApiProduct) => {
+    if (isAiRecommended) {
+      if (marketMode === "HOTEL") {
+        return (
+          product.category === "PREPARED_FOOD" ||
+          product.is_surprise_bag ||
+          (product.shop?.name && /restaurant|hotel|cafe|kitchen|dhaba|bhojanalaya|biryani|bakery/i.test(product.shop.name))
+        );
+      }
+      return product.category !== "PREPARED_FOOD" && !product.is_surprise_bag;
+    }
     if (marketMode === "HOTEL") {
       // Hotel & Restaurant Mode
       if (activeFilter === "All") {
@@ -664,7 +690,7 @@ export default function CustomerDealsPage() {
   let errorMessage: string | null = null;
   
   if (isAiRecommended) {
-    displayStatus = loadingRecommended ? "loading" : (recommendedProducts.length > 0 ? "success" : "empty");
+    displayStatus = loadingRecommended && recommendedProducts.length === 0 ? "loading" : (displayProducts.length > 0 ? "success" : "empty");
   } else if (isDeepSearchActive) {
     if (deepSearchLoading && !deepSearchData) displayStatus = "loading";
     else if (deepSearchError) {
