@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ActivityIndicator,
   BackHandler,
   Platform,
@@ -12,7 +11,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { WebView } from "react-native-webview";
-import { QrCode, ScanLine } from "lucide-react-native";
 import { UniversalScannerModal, type ScannedBarcodeResult } from "../components/UniversalScannerModal";
 import { broadcastScannerResult } from "../services/products";
 
@@ -200,16 +198,6 @@ export const WebUnifiedView: React.FC = () => {
         />
       </View>
 
-      {/* Discreet Floating Native Camera QR / Barcode Scanner FAB */}
-      <TouchableOpacity
-        style={styles.floatingFab}
-        activeOpacity={0.85}
-        onPress={() => setScannerVisible(true)}
-        accessibilityLabel="Launch Expo Go Camera Scanner"
-      >
-        <ScanLine size={22} color="#ffffff" strokeWidth={2.4} />
-      </TouchableOpacity>
-
       {/* Hardware Camera / Barcode Modal */}
       <UniversalScannerModal
         visible={scannerVisible}
@@ -250,24 +238,5 @@ const styles = StyleSheet.create({
     color: "#6D28D9",
     fontSize: 14,
     fontWeight: "700",
-  },
-  floatingFab: {
-    position: "absolute",
-    bottom: 88,
-    right: 16,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "#7c3aed",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#7c3aed",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.45,
-    shadowRadius: 8,
-    elevation: 10,
-    borderWidth: 1.5,
-    borderColor: "rgba(255, 255, 255, 0.4)",
-    zIndex: 9999,
   },
 });
