@@ -744,6 +744,10 @@ export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) =>
                   style={[styles.roleBtn, roleMode === "vendor" && styles.roleBtnActiveVendor]}
                   onPress={() => {
                     setRoleMode("vendor");
+                    if (!loginEmail || loginEmail === "customer@expirygo.com") {
+                      setLoginEmail("deveshsuresh7@gmail.com");
+                      setLoginPassword("1234567");
+                    }
                     setError(null);
                   }}
                   activeOpacity={0.8}
@@ -903,6 +907,22 @@ export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) =>
                       </>
                     )}
                   </TouchableOpacity>
+
+                  {roleMode === "vendor" && (
+                    <TouchableOpacity
+                      style={styles.quickFillVendorBtn}
+                      onPress={() => {
+                        setLoginEmail("deveshsuresh7@gmail.com");
+                        setLoginPassword("1234567");
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Sparkles size={14} color={Colors.amberBright} />
+                      <Text style={styles.quickFillVendorText}>
+                        1-Tap Fill: deveshsuresh7@gmail.com (Naveen Bakery)
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               ) : (
                 /* OTP Mode */
@@ -2100,5 +2120,23 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.textMuted,
     letterSpacing: 1,
+  },
+  quickFillVendorBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(245, 158, 11, 0.12)",
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.3)",
+    marginTop: Spacing.xs,
+  },
+  quickFillVendorText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.amberBright,
   },
 });

@@ -1,20 +1,28 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, StyleSheet } from "react-native";
+import { useIsFocused } from "@react-navigation/native";
 import { UniversalScannerModal, type UniversalScannerMode } from "../components/UniversalScannerModal";
 
 export const ScannerScreen: React.FC<{ navigation: any; route?: any }> = ({
   navigation,
   route,
 }) => {
+  const isFocused = useIsFocused();
   const initialMode: UniversalScannerMode = route?.params?.mode || "barcode";
   const [modalVisible, setModalVisible] = useState(true);
+
+  useEffect(() => {
+    if (isFocused) {
+      setModalVisible(true);
+    }
+  }, [isFocused]);
 
   const handleClose = () => {
     setModalVisible(false);
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      navigation.navigate("DealsFeed");
+      navigation.navigate("DealsTab", { screen: "DealsFeed" });
     }
   };
 
@@ -28,7 +36,7 @@ export const ScannerScreen: React.FC<{ navigation: any; route?: any }> = ({
   return (
     <View style={styles.container}>
       <UniversalScannerModal
-        visible={modalVisible}
+        visible={modalVisible && isFocused}
         onClose={handleClose}
         initialMode={initialMode}
         onBarcodeDetected={(data) => {

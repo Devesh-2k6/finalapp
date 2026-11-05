@@ -97,6 +97,18 @@ export function CustomerTabs() {
         }}
       />
       <Tab.Screen
+        name="ScannerTab"
+        component={ScannerScreen}
+        options={{
+          tabBarLabel: "QR Scanner",
+          tabBarIcon: ({ color, size, focused }) => (
+            <View style={[styles.scannerIconWrap, focused && styles.scannerIconWrapActive]}>
+              <QrCode color={focused ? "#FFFFFF" : Colors.primary} size={20} />
+            </View>
+          ),
+        }}
+      />
+      <Tab.Screen
         name="FridgeTab"
         component={FridgeStack}
         options={{
@@ -158,5 +170,18 @@ const styles = StyleSheet.create({
   },
   iconWrapActive: {
     backgroundColor: Colors.primaryLight,
+  },
+  scannerIconWrap: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primaryLight,
+    borderWidth: 1,
+    borderColor: Colors.cardBorderHighlight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scannerIconWrapActive: {
+    backgroundColor: Colors.primary,
   },
 });
