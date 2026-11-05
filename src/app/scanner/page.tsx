@@ -108,6 +108,8 @@ export default function WebScannerHubPage() {
 
   const lastTimestamp = useRef<number>(Date.now() - 30000);
   const [appUrl, setAppUrl] = useState("https://expirygo.vercel.app");
+  const [qrMode, setQrMode] = useState<"expo" | "web">("expo");
+  const EXPO_TUNNEL_URL = "exp://c1uc_ro-anonymous-8081.exp.direct";
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -468,32 +470,70 @@ export default function WebScannerHubPage() {
           <div className="lg:col-span-5 space-y-6">
             
             {/* Phone Pairing QR Card */}
-            <div className="p-6 rounded-3xl bg-zinc-900/80 border border-zinc-800 space-y-5 text-center">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs font-bold">
-                <QrCode className="w-3.5 h-3.5" />
-                Scan to Open on Phone
+            <div className="p-6 rounded-3xl bg-zinc-900/80 border border-zinc-800 space-y-4 text-center">
+              <div className="flex items-center justify-center gap-1.5 p-1 bg-zinc-950 rounded-2xl border border-zinc-800 max-w-xs mx-auto">
+                <button
+                  type="button"
+                  onClick={() => setQrMode("expo")}
+                  className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    qrMode === "expo"
+                      ? "bg-purple-600 text-white shadow-md shadow-purple-900/40"
+                      : "text-zinc-400 hover:text-white"
+                  }`}
+                >
+                  📱 Expo Go Mobile
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQrMode("web")}
+                  className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    qrMode === "web"
+                      ? "bg-purple-600 text-white shadow-md shadow-purple-900/40"
+                      : "text-zinc-400 hover:text-white"
+                  }`}
+                >
+                  🌐 Web App
+                </button>
               </div>
 
               <div>
-                <h3 className="text-base font-black text-white">Live Phone Scanner Pairing</h3>
+                <h3 className="text-base font-black text-white">
+                  {qrMode === "expo" ? "Expo Go Native Mobile App" : "ExpiryGo Web Application"}
+                </h3>
                 <p className="text-xs text-zinc-400 mt-1">
-                  Point your phone camera or Expo Go at this QR code to load the app directly:
+                  {qrMode === "expo"
+                    ? "Open Expo Go on Android or iPhone & scan to launch native camera scanner:"
+                    : "Point any smartphone camera to open the web app instantly:"}
                 </p>
               </div>
 
               <div className="p-4 bg-white rounded-2xl inline-block shadow-xl shadow-black/40">
-                <QRCodeSVG value={`${appUrl}?app=true`} size={180} />
+                <QRCodeSVG
+                  value={qrMode === "expo" ? EXPO_TUNNEL_URL : `${appUrl}?app=true`}
+                  size={190}
+                />
               </div>
 
               <div className="space-y-2">
                 <button
-                  onClick={copyAppUrl}
-                  className="w-full py-2.5 px-3 rounded-xl bg-zinc-950 hover:bg-zinc-850 border border-zinc-800 text-xs font-semibold text-zinc-300 flex items-center justify-center gap-2 transition"
+                  onClick={() => {
+                    const toCopy = qrMode === "expo" ? EXPO_TUNNEL_URL : appUrl;
+                    navigator.clipboard.writeText(toCopy);
+                    setCopiedUrl(true);
+                    setTimeout(() => setCopiedUrl(false), 2000);
+                  }}
+                  className="w-full py-2.5 px-3 rounded-xl bg-zinc-950 hover:bg-zinc-850 border border-zinc-800 text-xs font-semibold text-zinc-300 flex items-center justify-center gap-2 transition cursor-pointer"
                 >
                   {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copiedUrl ? "URL Copied to Clipboard!" : "Copy Production URL"}
+                  {copiedUrl
+                    ? "Copied to Clipboard!"
+                    : qrMode === "expo"
+                    ? "Copy Expo Go Tunnel URL"
+                    : "Copy Web URL"}
                 </button>
-                <p className="text-[10px] font-mono text-zinc-500 truncate">{appUrl}</p>
+                <p className="text-[10px] font-mono text-purple-300 truncate font-bold">
+                  {qrMode === "expo" ? EXPO_TUNNEL_URL : appUrl}
+                </p>
               </div>
             </div>
 

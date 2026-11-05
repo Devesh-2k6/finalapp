@@ -3,9 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Platform } from "
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { enableScreens } from "react-native-screens";
-import { AuthProvider } from "./src/contexts/AuthContext";
-import { LanguageProvider } from "./src/contexts/LanguageContext";
-import { RootNavigator } from "./src/navigation/RootNavigator";
+import { WebUnifiedView } from "./src/screens/WebUnifiedView";
 import { Colors, Radius, Spacing, Typography } from "./src/theme";
 
 // Initialize optimized native screens
@@ -113,12 +111,8 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ErrorBoundary>
-        <StatusBar style="light" />
-        <LanguageProvider>
-          <AuthProvider>
-            <RootNavigator />
-          </AuthProvider>
-        </LanguageProvider>
+        <StatusBar style="dark" />
+        <WebUnifiedView />
       </ErrorBoundary>
     </SafeAreaProvider>
   );
