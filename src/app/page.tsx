@@ -50,7 +50,7 @@ const HeroMap = dynamic(() => import('@/components/map/HeroMap'), { ssr: false }
 
 export default function Home() {
   const router = useRouter();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const [heroSearch, setHeroSearch] = useState("");
   const [locationText, setLocationText] = useState("Chennai, Tamil Nadu");
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -244,14 +244,27 @@ export default function Home() {
           {/* Header Action Buttons */}
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {isAuthenticated && user ? (
-              <Link
-                href={user.role === 'ADMIN' ? '/admin' : user.role === 'SHOP_OWNER' ? '/shop' : '/deals'}
-                onClick={playPopSound}
-                className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 text-xs sm:text-sm font-bold hover:bg-purple-100 transition whitespace-nowrap shadow-2xs"
-              >
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>{user.name?.split(' ')[0] || 'Account'}</span>
-              </Link>
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <Link
+                  href={user.role === 'ADMIN' ? '/admin' : user.role === 'SHOP_OWNER' ? '/shop' : '/deals'}
+                  onClick={playPopSound}
+                  className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 text-xs sm:text-sm font-bold hover:bg-purple-100 transition whitespace-nowrap shadow-2xs"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>{user.name?.split(' ')[0] || 'Account'}</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    logout();
+                    window.location.reload();
+                  }}
+                  className="text-[11px] sm:text-xs font-semibold text-zinc-400 hover:text-red-500 px-2 py-1.5 rounded-lg transition whitespace-nowrap cursor-pointer"
+                  title="Sign Out"
+                >
+                  Sign out
+                </button>
+              </div>
             ) : (
               <>
                 <Link

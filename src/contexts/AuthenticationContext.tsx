@@ -39,13 +39,10 @@ export function AuthenticationProvider({ children }: { children: React.ReactNode
         } catch {}
       }
     } catch {
+      // If server session is invalid or user was removed, clear all cached session artifacts
       if (typeof window !== "undefined") {
         try {
-          const cached = localStorage.getItem(CACHED_USER_KEY);
-          if (cached) {
-            setUser(JSON.parse(cached));
-            return;
-          }
+          localStorage.removeItem(CACHED_USER_KEY);
         } catch {}
       }
       clearAuthToken();
