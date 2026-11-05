@@ -72,6 +72,8 @@ export interface StoreData {
   orders?: any[];
   pantry?: any[];
   scanner_events?: any[];
+  favorites?: any[];
+  followers?: any[];
 }
 
 const BLOB_STORE_FILENAME = "expirygo_db_v1.json";
@@ -126,6 +128,12 @@ function ensureBaseline(store: StoreData): void {
   if (!Array.isArray(store.scanner_events)) {
     store.scanner_events = [];
   }
+  if (!Array.isArray(store.favorites)) {
+    store.favorites = [];
+  }
+  if (!Array.isArray(store.followers)) {
+    store.followers = [];
+  }
 }
 
 function loadLocalStore(): StoreData {
@@ -143,6 +151,8 @@ function loadLocalStore(): StoreData {
           orders: Array.isArray(parsed.orders) ? parsed.orders : [],
           pantry: Array.isArray(parsed.pantry) ? parsed.pantry : [],
           scanner_events: Array.isArray(parsed.scanner_events) ? parsed.scanner_events : [],
+          favorites: Array.isArray(parsed.favorites) ? parsed.favorites : [],
+          followers: Array.isArray(parsed.followers) ? parsed.followers : [],
         };
         ensureBaseline(store);
         return store;
@@ -151,7 +161,7 @@ function loadLocalStore(): StoreData {
   } catch (err) {
     console.warn("[STORE] Failed to read local store file:", err);
   }
-  const fresh: StoreData = { otps: {}, users: {}, shops: {}, products: [], reservations: [], orders: [], pantry: [] };
+  const fresh: StoreData = { otps: {}, users: {}, shops: {}, products: [], reservations: [], orders: [], pantry: [], favorites: [], followers: [] };
   ensureBaseline(fresh);
   return fresh;
 }
@@ -192,6 +202,12 @@ export async function ensureStoreLoaded(): Promise<StoreData> {
         }
         if (Array.isArray(cloudData.pantry)) {
           globalStore.pantry = cloudData.pantry;
+        }
+        if (Array.isArray(cloudData.favorites)) {
+          globalStore.favorites = cloudData.favorites;
+        }
+        if (Array.isArray(cloudData.followers)) {
+          globalStore.followers = cloudData.followers;
         }
         ensureBaseline(globalStore);
         lastCloudSync = now;
