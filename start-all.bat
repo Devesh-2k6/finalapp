@@ -42,7 +42,7 @@ echo.
 
 :: 6. Start React Native Expo Go Mobile Server with QR Scanner
 echo [4/5] Starting React Native Expo Go Mobile Server (%LAN_IP%:8081)...
-start "Meeva Mobile App" cmd /k "title Meeva Expo Go Server && cd mobile && set REACT_NATIVE_PACKAGER_HOSTNAME=%LAN_IP% && npx expo start --go --host lan -c"
+start "Meeva Mobile App" cmd /k "title Meeva Expo Go Server && cd mobile && set EXPO_NO_TELEMETRY=1 && set REACT_NATIVE_PACKAGER_HOSTNAME=%LAN_IP% && npx expo start --go --host lan -c"
 echo.
 
 :: 7. Start Cloudflare Public HTTPS Tunnel for Worldwide Access

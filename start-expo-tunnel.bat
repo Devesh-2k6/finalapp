@@ -1,6 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 title ExpiryGo - Expo Go Tunnel Launcher
+set EXPO_NO_TELEMETRY=1
 echo ============================================================
 echo   🚀 EXPIRYGO - EXPO GO TUNNEL LAUNCHER (WORLDWIDE ACCESS)
 echo ============================================================
@@ -17,6 +18,6 @@ node clean_ports.cjs 2>nul
 
 cd mobile
 echo Starting Expo Go with Tunnel...
-npx expo start --go --tunnel -c
+npx expo start --go --tunnel ngrok -c
 pause
 

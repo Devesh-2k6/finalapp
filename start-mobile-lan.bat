@@ -1,6 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 title Meeva Mobile - Expo Go LAN Mode
+set EXPO_NO_TELEMETRY=1
 
 :: 1. Auto-detect Wi-Fi IPv4 address and sync configs
 for /f "tokens=*" %%i in ('node get_ip.cjs 2^>nul') do set LAN_IP=%%i

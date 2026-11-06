@@ -1,6 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 title ExpiryGo - Expo Go Scanner Launcher
+set EXPO_NO_TELEMETRY=1
 echo ============================================================
 echo   📱 EXPIRYGO - EXPO GO SCANNER & MOBILE APP LAUNCHER
 echo ============================================================
@@ -38,7 +39,7 @@ if "%MODE%"=="2" (
     echo The QR code below will connect securely via tunnel!
     echo.
     cd mobile
-    npx expo start --go --tunnel -c
+    npx expo start --go --tunnel ngrok -c
 ) else if "%MODE%"=="3" (
     echo.
     echo [Starting Mobile App in Web Browser Mode]...
