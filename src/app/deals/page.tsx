@@ -842,9 +842,9 @@ export default function CustomerDealsPage() {
                 <Link
                   href="/reservations"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-100 hover:bg-zinc-200/70 dark:bg-zinc-800/70 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-semibold transition border border-zinc-200/60 dark:border-zinc-700/60"
-                  title="Counter QR Pickup Pass"
+                  title="Cart & Pickups"
                 >
-                  <QrCode size={13} className="text-zinc-500" />
+                  <ShoppingBag size={13} className="text-zinc-500" />
                   <span className="hidden sm:inline">Pickups</span>
                 </Link>
 

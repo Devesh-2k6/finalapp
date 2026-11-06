@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, TextInput, StyleSheet, TouchableOpacity, ScrollView, Text } from "react-native";
-import { Search, X, SlidersHorizontal, ChefHat, Sparkles, QrCode } from "lucide-react-native";
+import { Search, X, SlidersHorizontal, ChefHat, Sparkles } from "lucide-react-native";
 import { Colors, Radius, Shadows, Spacing, Typography } from "../theme";
 import type { ProductCategory } from "../types";
 
@@ -24,7 +24,6 @@ interface SearchBarProps {
   recipeMode: boolean;
   onToggleRecipeMode: () => void;
   onOpenFilters?: () => void;
-  onOpenQrScanner?: () => void;
 }
 
 export const SearchBar: React.FC<SearchBarProps> = ({
@@ -35,7 +34,6 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   recipeMode,
   onToggleRecipeMode,
   onOpenFilters,
-  onOpenQrScanner,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
 
@@ -60,7 +58,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             returnKeyType="search"
             autoCapitalize="none"
           />
-          {query.length > 0 ? (
+          {query.length > 0 && (
             <TouchableOpacity
               onPress={() => onChangeQuery("")}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -68,15 +66,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             >
               <X size={14} color={Colors.textSecondary} />
             </TouchableOpacity>
-          ) : onOpenQrScanner ? (
-            <TouchableOpacity
-              onPress={onOpenQrScanner}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={styles.clearBtn}
-            >
-              <QrCode size={17} color={Colors.primary} />
-            </TouchableOpacity>
-          ) : null}
+          )}
         </View>
 
         {/* Orange Accent Action Button */}

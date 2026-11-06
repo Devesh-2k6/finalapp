@@ -29,7 +29,6 @@ import { CustomHeader } from "../../components/CustomHeader";
 import { SearchBar } from "../../components/SearchBar";
 import { DealCard } from "../../components/DealCard";
 import { AiForecastModal } from "../../components/AiForecastModal";
-import { CameraScannerModal } from "../../components/CameraScannerModal";
 import { EmptyState } from "../../components/EmptyState";
 import {
   getProducts,
@@ -55,7 +54,6 @@ export const DealsFeedScreen: React.FC<DealsFeedScreenProps> = ({ navigation }) 
   const [category, setCategory] = useState<ProductCategory | "ALL" | "SAVED">("ALL");
   const [recipeMode, setRecipeMode] = useState(false);
   const [selectedProductForAi, setSelectedProductForAi] = useState<ApiProduct | null>(null);
-  const [qrScannerVisible, setQrScannerVisible] = useState(false);
 
   // Recipe basket
   const [recipeBasket, setRecipeBasket] = useState<ApiProduct[]>([]);
@@ -238,7 +236,6 @@ export const DealsFeedScreen: React.FC<DealsFeedScreenProps> = ({ navigation }) 
         onSelectCategory={setCategory}
         recipeMode={recipeMode}
         onToggleRecipeMode={() => setRecipeMode(!recipeMode)}
-        onOpenQrScanner={() => setQrScannerVisible(true)}
       />
 
       {/* Main Deals Feed */}
@@ -488,26 +485,6 @@ export const DealsFeedScreen: React.FC<DealsFeedScreenProps> = ({ navigation }) 
           ) : null}
         </View>
       </Modal>
-
-      {/* Live Scanner Modal */}
-      <CameraScannerModal
-        visible={qrScannerVisible}
-        onClose={() => setQrScannerVisible(false)}
-        mode="barcode"
-        onBarcodeDetected={(data) => {
-          if (data.name) {
-            setQuery(data.name);
-          } else if (data.barcode) {
-            setQuery(data.barcode);
-          }
-        }}
-        onQrScanned={(data) => {
-          setQuery(data);
-        }}
-        onNavigateToDealsWithQuery={(q) => {
-          setQuery(q);
-        }}
-      />
     </View>
   );
 };

@@ -165,7 +165,7 @@ export default function MobileHubPage() {
                 EXPIRYGO UNIFIED ECOSYSTEM
               </div>
               <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
-                Mobile App & Scanner Hub
+                Mobile App & Downloads
               </h1>
               <p className="text-sm text-zinc-400 mt-2 max-w-xl">
                 Experience ExpiryGo as a real native application on your phone. Test with Expo Go or download standalone APK with 100% live synchronization.
@@ -199,8 +199,8 @@ export default function MobileHubPage() {
                 : "text-zinc-400 hover:text-white"
             }`}
           >
-            <QrCode className="w-4 h-4" />
-            Expo Go Scanner
+            <Smartphone className="w-4 h-4" />
+            Expo Go (Live Preview)
           </button>
           <button
             onClick={() => setActiveTab("apk")}

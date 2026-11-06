@@ -13,7 +13,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { WebView } from "react-native-webview";
-import { QrCode } from "lucide-react-native";
 import { UniversalScannerModal, type ScannedBarcodeResult } from "../components/UniversalScannerModal";
 import { broadcastScannerResult } from "../services/products";
 
@@ -271,20 +270,6 @@ export const WebUnifiedView: React.FC = () => {
         />
       </View>
 
-      {/* Floating Hardware Camera QR & Barcode Scanner Button - positioned right above bottom nav */}
-      <TouchableOpacity
-        style={styles.floatingScannerFab}
-        onPress={() => setScannerVisible(true)}
-        activeOpacity={0.85}
-        accessibilityRole="button"
-        accessibilityLabel="Open Camera QR Scanner"
-      >
-        <View style={styles.fabIconWrap}>
-          <QrCode color="#ffffff" size={17} strokeWidth={2.5} />
-        </View>
-        <Text style={styles.floatingScannerText}>QR Scanner</Text>
-      </TouchableOpacity>
-
       {/* Hardware Camera / Barcode Modal */}
       <UniversalScannerModal
         visible={scannerVisible}
@@ -309,40 +294,6 @@ const styles = StyleSheet.create({
   webview: {
     flex: 1,
     backgroundColor: "#FAFAFE",
-  },
-  floatingScannerFab: {
-    position: "absolute",
-    bottom: 88,
-    right: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#7c3aed",
-    paddingVertical: 9,
-    paddingHorizontal: 15,
-    borderRadius: 30,
-    gap: 7,
-    shadowColor: "#6d28d9",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 10,
-    elevation: 9,
-    borderWidth: 1.5,
-    borderColor: "rgba(255, 255, 255, 0.25)",
-    zIndex: 9999,
-  },
-  fabIconWrap: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  floatingScannerText: {
-    color: "#ffffff",
-    fontWeight: "800",
-    fontSize: 12,
-    letterSpacing: 0.2,
   },
   loadingOverlay: {
     position: "absolute",

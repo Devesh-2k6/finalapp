@@ -135,8 +135,9 @@ export function CompanionScannerListener() {
     router.push(`/deals?q=${encodeURIComponent(query)}`);
   };
 
-  // If already on /scanner page, the page itself handles rendering
-  if (!activeScan || pathname === "/scanner") return null;
+  // Only show scanner listener notifications on merchant or admin pages
+  const isMerchantOrAdmin = pathname.startsWith("/shop") || pathname.startsWith("/admin");
+  if (!activeScan || pathname === "/scanner" || !isMerchantOrAdmin) return null;
 
   const isAlreadyOnAddPage = pathname === "/shop/products/add";
   const isPickupPass = activeScan.is_pickup_verification;

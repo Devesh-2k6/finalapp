@@ -176,7 +176,7 @@ export function MobileConnectModal({ isOpen, onClose }: MobileConnectModalProps)
                 </div>
                 <div>
                   <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                    Mobile App & Scanner Hub
+                    ExpiryGo Mobile App
                     <span className="text-[10px] font-semibold bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/30">
                       LIVE ECOSYSTEM
                     </span>
@@ -204,8 +204,8 @@ export function MobileConnectModal({ isOpen, onClose }: MobileConnectModalProps)
                     : "border-transparent text-zinc-400 hover:text-zinc-200"
                 }`}
               >
-                <QrCode className="w-4 h-4" />
-                Expo Go Scanner
+                <Smartphone className="w-4 h-4" />
+                Expo Go (Live Preview)
               </button>
               <button
                 onClick={() => setActiveTab("apk")}

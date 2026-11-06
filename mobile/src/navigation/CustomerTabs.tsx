@@ -2,7 +2,7 @@ import React from "react";
 import { View, StyleSheet, Platform } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { Flame, Compass, ShoppingBag, User, Sparkles, Layers, QrCode } from "lucide-react-native";
+import { Flame, Compass, ShoppingBag, User, Sparkles, Layers } from "lucide-react-native";
 import { Colors, Radius, Shadows } from "../theme";
 
 import { DealsFeedScreen } from "../screens/customer/DealsFeedScreen";
@@ -13,7 +13,6 @@ import { ProductDetailScreen } from "../screens/customer/ProductDetailScreen";
 import { CheckoutScreen } from "../screens/customer/CheckoutScreen";
 import { NotificationsScreen } from "../screens/customer/NotificationsScreen";
 import { DigitalFridgeScreen } from "../screens/customer/DigitalFridgeScreen";
-import { ScannerScreen } from "../screens/ScannerScreen";
 import { useLanguage } from "../contexts/LanguageContext";
 
 const Tab = createBottomTabNavigator();
@@ -26,7 +25,6 @@ function DealsStack() {
       <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
       <Stack.Screen name="Checkout" component={CheckoutScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
-      <Stack.Screen name="Scanner" component={ScannerScreen} />
     </Stack.Navigator>
   );
 }
@@ -35,7 +33,6 @@ function FridgeStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="DigitalFridge" component={DigitalFridgeScreen} />
-      <Stack.Screen name="Scanner" component={ScannerScreen} />
     </Stack.Navigator>
   );
 }
@@ -92,18 +89,6 @@ export function CustomerTabs() {
           tabBarIcon: ({ color, size, focused }) => (
             <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
               <Flame color={focused ? Colors.primary : color} size={20} />
-            </View>
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="ScannerTab"
-        component={ScannerScreen}
-        options={{
-          tabBarLabel: "QR Scanner",
-          tabBarIcon: ({ color, size, focused }) => (
-            <View style={[styles.scannerIconWrap, focused && styles.scannerIconWrapActive]}>
-              <QrCode color={focused ? "#FFFFFF" : Colors.primary} size={20} />
             </View>
           ),
         }}

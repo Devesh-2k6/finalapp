@@ -14,7 +14,7 @@ import {
   ShieldCheck,
   Sparkles,
   MessageCircle,
-  Camera,
+  Smartphone,
   Briefcase,
   Search,
   Store,
@@ -729,8 +729,8 @@ export default function Home() {
                 <Link href="/deals" title="Shopper Community" className="w-10 h-10 rounded-full bg-white/10 hover:bg-purple-600 flex items-center justify-center text-white transition">
                   <MessageCircle size={18} />
                 </Link>
-                <Link href="/mobile" title="Mobile App & QR Scanner" className="w-10 h-10 rounded-full bg-white/10 hover:bg-purple-600 flex items-center justify-center text-white transition">
-                  <Camera size={18} />
+                <Link href="/mobile" title="Mobile App" className="w-10 h-10 rounded-full bg-white/10 hover:bg-purple-600 flex items-center justify-center text-white transition">
+                  <Smartphone size={18} />
                 </Link>
                 <Link href="/shop/setup" title="Register Store as Partner" className="w-10 h-10 rounded-full bg-white/10 hover:bg-purple-600 flex items-center justify-center text-white transition">
                   <Briefcase size={18} />
@@ -757,7 +757,7 @@ export default function Home() {
                 <li><Link href="/shop/products" className="hover:text-purple-400 transition">Inventory & Dynamic Pricing</Link></li>
                 <li><Link href="/shop/reservations" className="hover:text-purple-400 transition">Order Pickup Verification</Link></li>
                 <li><Link href="/admin" className="hover:text-purple-400 transition">Admin Moderation</Link></li>
-                <li><Link href="/mobile" className="hover:text-purple-400 transition">Mobile App & Scanner Hub</Link></li>
+                <li><Link href="/mobile" className="hover:text-purple-400 transition">Mobile App</Link></li>
               </ul>
             </div>
 
