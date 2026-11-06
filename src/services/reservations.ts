@@ -3,11 +3,35 @@ import type { ApiReservation } from "@/types/product";
 
 const LOCAL_STORAGE_KEY = "expirygo_local_reservations_v1";
 
-function getLocalReservations(): ApiReservation[] {
+function getCurrentCachedUser(): { id?: string; email?: string } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("EXPIRYGO_CACHED_USER");
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function getLocalReservations(activeUserId?: string, activeEmail?: string): ApiReservation[] {
   if (typeof window === "undefined") return [];
+  const cached = getCurrentCachedUser();
+  const uid = (activeUserId || cached?.id || "").toLowerCase();
+  const email = (activeEmail || cached?.email || "").toLowerCase();
+  if (!uid && !email) return [];
+
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const list: ApiReservation[] = raw ? JSON.parse(raw) : [];
+    return list.filter((r) => {
+      const rUid = (r.user_id || "").toLowerCase();
+      const rEmail = ((r as any).customer_email || "").toLowerCase();
+      return (
+        (uid && rUid === uid) ||
+        (email && (rUid === email || rEmail === email))
+      );
+    });
   } catch {
     return [];
   }
@@ -15,10 +39,17 @@ function getLocalReservations(): ApiReservation[] {
 
 function saveLocalReservation(res: ApiReservation): void {
   if (typeof window === "undefined") return;
+  const user = getCurrentCachedUser();
+  const resToSave = {
+    ...res,
+    user_id: res.user_id && !res.user_id.startsWith("guest_") && res.user_id !== "user_customer" ? res.user_id : (user?.id || res.user_id),
+    customer_email: (res as any).customer_email || user?.email,
+  };
   try {
-    const current = getLocalReservations();
-    const filtered = current.filter((r) => r.id !== res.id);
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify([res, ...filtered]));
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+    const current: ApiReservation[] = raw ? JSON.parse(raw) : [];
+    const filtered = current.filter((r) => r.id !== resToSave.id);
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify([resToSave, ...filtered]));
   } catch {}
 }
 
@@ -26,10 +57,16 @@ export async function createReservation(
   productId: string,
   quantity: number
 ): Promise<ApiReservation> {
+  const cachedUser = getCurrentCachedUser();
   try {
     const res = await apiRequest<ApiReservation>("/api/reservations", {
       method: "POST",
-      json: { product_id: productId, quantity },
+      json: {
+        product_id: productId,
+        quantity,
+        user_id: cachedUser?.id,
+        customer_email: cachedUser?.email,
+      },
     });
     if (res && res.id) {
       saveLocalReservation(res);
@@ -39,11 +76,12 @@ export async function createReservation(
     console.warn("[RESERVATION] /api/reservations POST failed, attempting retry or local fallback:", err);
   }
 
-  // Fallback: create resilient reservation so user ALWAYS gets their Counter QR Pass & PIN
+  // Fallback: create resilient reservation scoped to the active user
   const randomPin = Math.floor(100000 + Math.random() * 900000).toString();
   const fallbackRes: ApiReservation = {
     id: `res_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-    user_id: "user_customer",
+    user_id: cachedUser?.id || "user_customer",
+    customer_email: cachedUser?.email,
     shop_id: "shop_nithiya_001",
     product_id: productId,
     quantity,
@@ -72,19 +110,38 @@ export async function createReservation(
         phone_number: "9876543210",
       },
     } as any,
-  };
+  } as any;
 
   saveLocalReservation(fallbackRes);
   return fallbackRes;
 }
 
-export async function getMyReservations(): Promise<ApiReservation[]> {
-  const local = getLocalReservations();
+export async function getMyReservations(
+  activeUserId?: string,
+  activeEmail?: string
+): Promise<ApiReservation[]> {
+  const local = getLocalReservations(activeUserId, activeEmail);
+  const cached = getCurrentCachedUser();
+  const uid = (activeUserId || cached?.id || "").toLowerCase();
+  const email = (activeEmail || cached?.email || "").toLowerCase();
+
   try {
     const server = await apiRequest<ApiReservation[]>("/api/reservations/me");
     if (Array.isArray(server)) {
-      const serverIds = new Set(server.map((s) => s.id));
-      const combined = [...server, ...local.filter((l) => !serverIds.has(l.id))];
+      // Strictly filter to ensure no cross-user leakage
+      const sanitizedServer = (uid || email)
+        ? server.filter((s) => {
+            const sUid = (s.user_id || "").toLowerCase();
+            const sEmail = ((s as any).customer_email || "").toLowerCase();
+            return (
+              (uid && sUid === uid) ||
+              (email && (sUid === email || sEmail === email))
+            );
+          })
+        : server;
+
+      const serverIds = new Set(sanitizedServer.map((s) => s.id));
+      const combined = [...sanitizedServer, ...local.filter((l) => !serverIds.has(l.id))];
       return combined.sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
@@ -94,33 +151,32 @@ export async function getMyReservations(): Promise<ApiReservation[]> {
 }
 
 export async function getShopReservations(): Promise<ApiReservation[]> {
-  const local = getLocalReservations();
   try {
     const server = await apiRequest<ApiReservation[]>("/api/shops/reservations");
     if (Array.isArray(server)) {
-      const serverIds = new Set(server.map((s) => s.id));
-      const combined = [...server, ...local.filter((l) => !serverIds.has(l.id))];
-      return combined.sort(
+      return server.sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
     }
   } catch {}
-  return local;
+  return [];
 }
 
 export async function verifyReservation(
   reservationId: string,
   pickupCode: string
 ): Promise<{ message: string; status: string }> {
-  // Update local copy
-  const local = getLocalReservations();
-  const match = local.find((r) => r.id === reservationId);
-  if (match) {
-    match.status = "COMPLETED";
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(local));
-    } catch {}
-  }
+  try {
+    const raw = typeof window !== "undefined" ? localStorage.getItem(LOCAL_STORAGE_KEY) : null;
+    if (raw) {
+      const local: ApiReservation[] = JSON.parse(raw);
+      const match = local.find((r) => r.id === reservationId);
+      if (match) {
+        match.status = "COMPLETED";
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(local));
+      }
+    }
+  } catch {}
 
   try {
     return await apiRequest<{ message: string; status: string }>(
@@ -141,14 +197,17 @@ export async function verifyReservation(
 export async function checkoutReservation(
   reservationId: string
 ): Promise<{ message: string; payment_status: string }> {
-  const local = getLocalReservations();
-  const match = local.find((r) => r.id === reservationId);
-  if (match) {
-    match.payment_status = "PAID";
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(local));
-    } catch {}
-  }
+  try {
+    const raw = typeof window !== "undefined" ? localStorage.getItem(LOCAL_STORAGE_KEY) : null;
+    if (raw) {
+      const local: ApiReservation[] = JSON.parse(raw);
+      const match = local.find((r) => r.id === reservationId);
+      if (match) {
+        match.payment_status = "PAID";
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(local));
+      }
+    }
+  } catch {}
 
   try {
     return await apiRequest<{ message: string; payment_status: string }>(

@@ -16,6 +16,7 @@ import { EmptyState } from "../../components/EmptyState";
 import { getMyReservations } from "../../services/reservations";
 import { getMyOrders } from "../../services/orders";
 import { useRealtimeDeals } from "../../hooks/useRealtimeDeals";
+import { useAuth } from "../../contexts/AuthContext";
 import type { ApiReservation, ApiOrder } from "../../types";
 
 interface ReservationsScreenProps {
@@ -23,6 +24,7 @@ interface ReservationsScreenProps {
 }
 
 export const ReservationsScreen: React.FC<ReservationsScreenProps> = ({ navigation }) => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"pickups" | "deliveries">("pickups");
   const [reservations, setReservations] = useState<ApiReservation[]>([]);
   const [orders, setOrders] = useState<ApiOrder[]>([]);
@@ -30,20 +32,48 @@ export const ReservationsScreen: React.FC<ReservationsScreenProps> = ({ navigati
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = useCallback(async () => {
+    if (!user) {
+      setReservations([]);
+      setOrders([]);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
       const [resList, ordList] = await Promise.all([
         getMyReservations().catch(() => []),
         getMyOrders().catch(() => []),
       ]);
-      setReservations(resList);
-      setOrders(ordList);
+      const myUid = (user.id || "").toLowerCase();
+      const myEmail = (user.email || "").toLowerCase();
+
+      const userReservations = resList.filter((r) => {
+        const rUid = (r.user_id || "").toLowerCase();
+        const rEmail = ((r as any).customer_email || "").toLowerCase();
+        return (
+          (myUid && rUid === myUid) ||
+          (myEmail && (rUid === myEmail || rEmail === myEmail))
+        );
+      });
+
+      const userOrders = ordList.filter((o) => {
+        const oUid = (o.customer_id || "").toLowerCase();
+        const oEmail = ((o as any).customer_email || "").toLowerCase();
+        return (
+          (myUid && oUid === myUid) ||
+          (myEmail && (oUid === myEmail || oEmail === myEmail))
+        );
+      });
+
+      setReservations(userReservations);
+      setOrders(userOrders);
     } catch (err) {
       console.log("Failed to load user reservations/orders:", err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [user]);
 
   useRealtimeDeals({
     onRefreshNeeded: loadData,

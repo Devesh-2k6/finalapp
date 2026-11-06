@@ -12,24 +12,26 @@ export async function GET(req: Request) {
     const authHeader = req.headers.get("authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
 
-    const orders = await getAllOrdersAsync();
-
-    if (token) {
-      const payload = verifyToken(token);
-      if (payload?.sub) {
-        const shop = await getShopByOwnerIdAsync(payload.sub);
-        if (shop) {
-          const shopOrders = orders.filter(
-            (o) => o.shop_id === shop.id || o.product?.shop?.id === shop.id
-          );
-          return NextResponse.json(shopOrders);
-        }
-      }
+    if (!token) {
+      return NextResponse.json([]);
     }
 
-    return NextResponse.json(orders);
+    const payload = verifyToken(token);
+    if (!payload?.sub) {
+      return NextResponse.json([]);
+    }
+
+    const shop = await getShopByOwnerIdAsync(payload.sub);
+    if (!shop) {
+      return NextResponse.json([]);
+    }
+
+    const orders = await getAllOrdersAsync();
+    const shopOrders = orders.filter(
+      (o) => o.shop_id === shop.id || o.product?.shop?.id === shop.id
+    );
+    return NextResponse.json(shopOrders);
   } catch (err: any) {
     return NextResponse.json([], { status: 200 });
   }
 }
-

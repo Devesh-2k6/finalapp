@@ -34,6 +34,21 @@ export async function getMe(): Promise<AuthUser> {
   return apiRequest<AuthUser>("/users/me");
 }
 
+export type UpdateProfileInput = {
+  name: string;
+  phone_number?: string;
+};
+
+export async function updateProfile(data: UpdateProfileInput): Promise<AuthUser> {
+  return apiRequest<AuthUser>("/users/me", {
+    method: "PATCH",
+    json: {
+      name: data.name.trim(),
+      phone_number: data.phone_number?.trim() || undefined,
+    },
+  });
+}
+
 export async function verifyEmail(token: string): Promise<VerifyEmailResponse> {
   return apiRequest<VerifyEmailResponse>(`/auth/verify-email?token=${encodeURIComponent(token.trim())}`, {
     method: "GET",

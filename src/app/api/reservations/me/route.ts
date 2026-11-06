@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   ensureStoreLoaded,
   getAllReservationsAsync,
+  getUserByIdAsync,
   verifyToken,
 } from "@/lib/server-otp";
 
@@ -11,22 +12,31 @@ export async function GET(req: Request) {
     const authHeader = req.headers.get("authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
 
-    const reservations = await getAllReservationsAsync();
-
-    if (token) {
-      const payload = verifyToken(token);
-      if (payload?.sub) {
-        const filtered = reservations.filter(
-          (r) => r.user_id === payload.sub || r.user_id?.toLowerCase() === payload.sub.toLowerCase()
-        );
-        // If specific user reservations exist, return them; otherwise return all so user doesn't see blank on mismatch
-        return NextResponse.json(filtered.length > 0 ? filtered : reservations);
-      }
+    if (!token) {
+      return NextResponse.json([]);
     }
 
-    return NextResponse.json(reservations);
+    const payload = verifyToken(token);
+    if (!payload?.sub) {
+      return NextResponse.json([]);
+    }
+
+    const user = await getUserByIdAsync(payload.sub);
+    const userId = (user?.id || payload.sub).toLowerCase();
+    const userEmail = user?.email?.toLowerCase();
+
+    const reservations = await getAllReservationsAsync();
+    const filtered = reservations.filter((r) => {
+      const rUserId = (r.user_id || "").toLowerCase();
+      const rCustomerEmail = ((r as any).customer_email || "").toLowerCase();
+      return (
+        rUserId === userId ||
+        (userEmail && (rUserId === userEmail || rCustomerEmail === userEmail))
+      );
+    });
+
+    return NextResponse.json(filtered);
   } catch (err: any) {
     return NextResponse.json([], { status: 200 });
   }
 }
-

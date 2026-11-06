@@ -383,16 +383,18 @@ export function getUser(email: string): StoredUser | undefined {
 
 export async function getUserByIdAsync(id: string): Promise<StoredUser | undefined> {
   await ensureStoreLoaded();
+  const clean = id.trim().toLowerCase();
   return (
-    Object.values(globalStore.users).find((u) => u.id === id) ||
-    Object.values(BASELINE_USERS).find((u) => u.id === id)
+    Object.values(globalStore.users).find((u) => u.id === id || u.email?.toLowerCase() === clean) ||
+    Object.values(BASELINE_USERS).find((u) => u.id === id || u.email?.toLowerCase() === clean)
   );
 }
 
 export function getUserById(id: string): StoredUser | undefined {
+  const clean = id.trim().toLowerCase();
   return (
-    Object.values(globalStore.users).find((u) => u.id === id) ||
-    Object.values(BASELINE_USERS).find((u) => u.id === id)
+    Object.values(globalStore.users).find((u) => u.id === id || u.email?.toLowerCase() === clean) ||
+    Object.values(BASELINE_USERS).find((u) => u.id === id || u.email?.toLowerCase() === clean)
   );
 }
 
@@ -403,6 +405,55 @@ export async function getAllUsersAsync(): Promise<StoredUser[]> {
 
 export function getAllUsers(): StoredUser[] {
   return Object.values(globalStore.users);
+}
+
+export async function updateUserProfileAsync(
+  identifier: string,
+  updates: { name?: string; phone_number?: string }
+): Promise<StoredUser | undefined> {
+  await ensureStoreLoaded();
+  const clean = identifier.trim().toLowerCase();
+  let user =
+    Object.values(globalStore.users).find((u) => u.id === identifier || u.email?.toLowerCase() === clean) ||
+    Object.values(BASELINE_USERS).find((u) => u.id === identifier || u.email?.toLowerCase() === clean);
+
+  if (!user && (identifier === "admin_devesh_001" || clean === "devpant2006@gmail.com")) {
+    user = {
+      id: "admin_devesh_001",
+      email: "devpant2006@gmail.com",
+      name: "Devesh Admin",
+      role: "ADMIN",
+      is_shop_owner: false,
+      email_verified: true,
+      created_at: new Date().toISOString(),
+    };
+  }
+
+  if (!user) return undefined;
+
+  const updated: StoredUser = {
+    ...user,
+    name: updates.name !== undefined && updates.name.trim() ? updates.name.trim() : user.name,
+    phone_number: updates.phone_number !== undefined ? updates.phone_number.trim() : user.phone_number,
+  };
+
+  const emailKey = updated.email.trim().toLowerCase();
+  globalStore.users[emailKey] = updated;
+
+  // Synchronize shop owner details if user owns any store
+  if (globalStore.shops) {
+    for (const shop of Object.values(globalStore.shops)) {
+      if (shop && (shop.owner_id === updated.id || shop.owner_email?.toLowerCase() === emailKey)) {
+        shop.owner_name = updated.name;
+        if (updated.phone_number) {
+          shop.owner_phone = updated.phone_number;
+        }
+      }
+    }
+  }
+
+  await saveStoreAsync(globalStore);
+  return updated;
 }
 
 export async function saveShopAsync(shop: StoredShop): Promise<void> {

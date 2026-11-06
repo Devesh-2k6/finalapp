@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   ensureStoreLoaded,
   getAllOrdersAsync,
+  getUserByIdAsync,
   verifyToken,
 } from "@/lib/server-otp";
 
@@ -11,21 +12,31 @@ export async function GET(req: Request) {
     const authHeader = req.headers.get("authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
 
-    const orders = await getAllOrdersAsync();
-
-    if (token) {
-      const payload = verifyToken(token);
-      if (payload?.sub) {
-        const filtered = orders.filter(
-          (o) => o.customer_id === payload.sub || o.customer_id?.toLowerCase() === payload.sub.toLowerCase()
-        );
-        return NextResponse.json(filtered.length > 0 ? filtered : orders);
-      }
+    if (!token) {
+      return NextResponse.json([]);
     }
 
-    return NextResponse.json(orders);
+    const payload = verifyToken(token);
+    if (!payload?.sub) {
+      return NextResponse.json([]);
+    }
+
+    const user = await getUserByIdAsync(payload.sub);
+    const userId = (user?.id || payload.sub).toLowerCase();
+    const userEmail = user?.email?.toLowerCase();
+
+    const orders = await getAllOrdersAsync();
+    const filtered = orders.filter((o) => {
+      const oCustId = (o.customer_id || "").toLowerCase();
+      const oCustEmail = ((o as any).customer_email || "").toLowerCase();
+      return (
+        oCustId === userId ||
+        (userEmail && (oCustId === userEmail || oCustEmail === userEmail))
+      );
+    });
+
+    return NextResponse.json(filtered);
   } catch (err: any) {
     return NextResponse.json([], { status: 200 });
   }
 }
-

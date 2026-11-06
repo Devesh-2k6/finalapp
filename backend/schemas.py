@@ -28,6 +28,10 @@ class User(UserBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    phone_number: Optional[str] = None
+
 # =========================
 # AUTH
 # =========================

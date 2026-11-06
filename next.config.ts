@@ -32,6 +32,10 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
+        source: "/api/users/me",
+        destination: "/users/me",
+      },
+      {
         source: "/reservations/me",
         destination: "/api/reservations/me",
       },

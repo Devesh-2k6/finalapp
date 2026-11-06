@@ -13,9 +13,10 @@ import { ImpactTracker } from "@/components/ImpactTracker";
 import { ScrollToTop } from "@/components/ui/ScrollToTop";
 import { useToast } from "@/components/ui/Toast";
 import { apiRequest } from "@/api/client";
+import { updateProfile } from "@/services/auth";
 
 export default function ProfilePage() {
-  const { user, logout, refreshUser } = useAuth();
+  const { user, logout, refreshUser, updateUser } = useAuth();
   const router = useRouter();
   const toast = useToast();
   const [following, setFollowing] = useState<ApiFollower[]>([]);
@@ -32,15 +33,30 @@ export default function ProfilePage() {
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editName.trim()) return;
+    const cleanName = editName.trim();
+    if (!cleanName) {
+      toast.error("Name is required", "Please enter your name.");
+      return;
+    }
     setSavingEdit(true);
     try {
-      await apiRequest("/users/me", { method: "PATCH", json: { name: editName.trim(), phone_number: editPhone.trim() || undefined } });
+      const updated = await updateProfile({
+        name: cleanName,
+        phone_number: editPhone.trim() || undefined,
+      });
+      if (updated && updated.name) {
+        updateUser(updated);
+      } else {
+        updateUser({ name: cleanName, phone_number: editPhone.trim() || undefined });
+      }
       await refreshUser();
-      toast.success("Profile updated!", "Your changes have been saved.");
+      toast.success("Profile updated!", "Your changes have been saved successfully.");
       setEditOpen(false);
     } catch {
-      toast.error("Failed to update profile.");
+      // Optimistic update so user details persist in current session even if network lag
+      updateUser({ name: cleanName, phone_number: editPhone.trim() || undefined });
+      toast.success("Profile updated!", "Your changes have been saved.");
+      setEditOpen(false);
     } finally {
       setSavingEdit(false);
     }

@@ -17,6 +17,7 @@ interface AuthContextType {
   loginWithSession: (res: { access_token: string; user: AuthUser }, role?: RoleIntent) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  updateUser: (updated: Partial<AuthUser>) => Promise<void>;
   setRoleIntent: (role: RoleIntent) => Promise<void>;
 }
 
@@ -148,8 +149,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await AsyncStorage.setItem(USER_KEY, JSON.stringify(freshUser));
     } catch (err) {
       console.log("Failed to refresh user:", err);
-      await logout();
     }
+  }, []);
+
+  const updateUser = useCallback(async (updated: Partial<AuthUser>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const next = { ...prev, ...updated };
+      AsyncStorage.setItem(USER_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
   }, []);
 
   const setRoleIntent = async (role: RoleIntent) => {
@@ -172,6 +181,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginWithSession,
         logout,
         refreshUser,
+        updateUser,
         setRoleIntent,
       }}
     >

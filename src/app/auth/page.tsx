@@ -846,11 +846,24 @@ export default function AuthPage() {
                     6-Digit Verification Code
                   </label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete="one-time-code"
                     required
                     maxLength={6}
                     value={forgotOtp}
                     onChange={(e) => setForgotOtp(e.target.value.replace(/\D/g, ""))}
+                    onKeyDown={(e) => {
+                      if (
+                        !/[0-9]/.test(e.key) &&
+                        !["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter"].includes(e.key) &&
+                        !e.ctrlKey &&
+                        !e.metaKey
+                      ) {
+                        e.preventDefault();
+                      }
+                    }}
                     className="w-full text-center tracking-[10px] text-xl font-black rounded-2xl border border-purple-300 dark:border-gray-700 bg-white/90 dark:bg-gray-950 text-slate-900 dark:text-white px-4 py-3 outline-none focus:ring-2 focus:ring-purple-500/20"
                     placeholder="••••••"
                   />
@@ -972,11 +985,24 @@ export default function AuthPage() {
                 6-Digit Verification Code
               </label>
               <input
-                type="text"
+                type="tel"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoComplete="one-time-code"
                 required
                 maxLength={6}
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                onKeyDown={(e) => {
+                  if (
+                    !/[0-9]/.test(e.key) &&
+                    !["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter"].includes(e.key) &&
+                    !e.ctrlKey &&
+                    !e.metaKey
+                  ) {
+                    e.preventDefault();
+                  }
+                }}
                 className="w-full text-center tracking-[12px] text-2xl font-black rounded-2xl border border-purple-300 dark:border-gray-700 bg-white/90 dark:bg-gray-950 text-slate-900 dark:text-white px-4 py-3.5 outline-none focus:ring-2 focus:ring-purple-500/20"
                 placeholder="••••••"
               />
@@ -1178,11 +1204,13 @@ export default function AuthPage() {
                     </label>
                     <input
                       type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       name="vendor_phone_field"
                       autoComplete="off"
                       required
                       value={vendorPhone}
-                      onChange={(e) => setVendorPhone(e.target.value)}
+                      onChange={(e) => setVendorPhone(e.target.value.replace(/\D/g, ""))}
                       className="w-full rounded-2xl border border-purple-200 dark:border-gray-700 bg-white/90 dark:bg-gray-950 text-slate-900 dark:text-white px-4 py-3 outline-none focus:border-purple-500 text-sm font-medium"
                       placeholder="10-digit mobile number"
                     />

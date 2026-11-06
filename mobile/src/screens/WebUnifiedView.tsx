@@ -8,11 +8,12 @@ import {
   Platform,
   Vibration,
   TouchableOpacity,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { WebView } from "react-native-webview";
-import { QrCode, ScanLine } from "lucide-react-native";
+import { QrCode } from "lucide-react-native";
 import { UniversalScannerModal, type ScannedBarcodeResult } from "../components/UniversalScannerModal";
 import { broadcastScannerResult } from "../services/products";
 
@@ -20,8 +21,43 @@ const AnyWebView = WebView as any;
 const WEB_BASE = "https://expirygo.vercel.app";
 const WEB_URL = `${WEB_BASE}?app=true`;
 
+// Constant source object defined OUTSIDE the component so its reference is 100% static.
+// In react-native-webview, passing an inline { uri: ... } object on every render causes native
+// Android WebView to compare props, detect difference with current URL, and forcibly reload the initial URL.
+const INITIAL_SOURCE = { uri: WEB_URL };
+
 const INJECTED_SCANNER_BRIDGE = `
   (function() {
+    function notifyNav() {
+      try {
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'NAV_STATE_CHANGE',
+            url: window.location.href,
+            pathname: window.location.pathname,
+            canGoBack: window.history.length > 1 && window.location.pathname !== '/'
+          }));
+        }
+      } catch(e) {}
+    }
+
+    // Intercept Next.js SPA client-side history navigation
+    var origPush = window.history.pushState;
+    window.history.pushState = function() {
+      var res = origPush.apply(this, arguments);
+      setTimeout(notifyNav, 50);
+      return res;
+    };
+    var origReplace = window.history.replaceState;
+    window.history.replaceState = function() {
+      var res = origReplace.apply(this, arguments);
+      setTimeout(notifyNav, 50);
+      return res;
+    };
+    window.addEventListener('popstate', function() {
+      setTimeout(notifyNav, 50);
+    });
+
     // Intercept clicks on any scanner buttons or links
     document.addEventListener('click', function(e) {
       var el = e.target && e.target.closest('a[href*="/scanner"], [data-scan], button[class*="scan" i], button[aria-label*="scan" i], [title*="scan" i]');
@@ -40,30 +76,45 @@ const INJECTED_SCANNER_BRIDGE = `
 
 export const WebUnifiedView: React.FC = () => {
   const webViewRef = useRef<any>(null);
-  const [canGoBack, setCanGoBack] = useState(false);
-  const [canGoForward, setCanGoForward] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const canGoBackRef = useRef(false);
+  const currentUrlRef = useRef(WEB_URL);
   const [scannerVisible, setScannerVisible] = useState(false);
-  const [currentUrl, setCurrentUrl] = useState(WEB_URL);
 
   // Hardware Android back button
   useEffect(() => {
     if (Platform.OS === "android") {
       const onBackPress = () => {
+        // 1. If scanner modal is visible, close it
         if (scannerVisible) {
           setScannerVisible(false);
           return true;
         }
-        if (canGoBack && webViewRef.current) {
-          webViewRef.current.goBack();
-          return true;
+
+        // 2. If webview can navigate back, do so in history
+        if (webViewRef.current) {
+          const url = currentUrlRef.current || "";
+          const isRoot =
+            !url ||
+            url === WEB_URL ||
+            url === WEB_BASE ||
+            url.endsWith(".app/") ||
+            url.endsWith(".app/?app=true") ||
+            url.endsWith(".app");
+
+          if (canGoBackRef.current || !isRoot) {
+            webViewRef.current.goBack();
+            return true;
+          }
         }
+
+        // 3. Otherwise on root, allow Android default behavior (exit/minimize app)
         return false;
       };
+
       const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
       return () => sub.remove();
     }
-  }, [canGoBack, scannerVisible]);
+  }, [scannerVisible]);
 
   // Handle messages from web page
   const handleMessage = (event: any) => {
@@ -71,6 +122,11 @@ export const WebUnifiedView: React.FC = () => {
       const data = JSON.parse(event.nativeEvent.data);
       if (data.type === "OPEN_CAMERA_SCANNER") {
         setScannerVisible(true);
+      } else if (data.type === "NAV_STATE_CHANGE") {
+        if (data.url) currentUrlRef.current = data.url;
+        if (typeof data.canGoBack === "boolean") {
+          canGoBackRef.current = data.canGoBack;
+        }
       }
     } catch {
       // not json
@@ -113,10 +169,11 @@ export const WebUnifiedView: React.FC = () => {
       webViewRef.current.injectJavaScript(injectScript);
 
       // 3. If on default pages, navigate to search or deals
+      const curr = currentUrlRef.current || "";
       if (
-        !currentUrl.includes("/shop/products/add") &&
-        !currentUrl.includes("/scanner") &&
-        !currentUrl.includes("/reservations") &&
+        !curr.includes("/shop/products/add") &&
+        !curr.includes("/scanner") &&
+        !curr.includes("/reservations") &&
         !res.is_pickup_verification
       ) {
         const target = `${WEB_BASE}/deals?q=${encodeURIComponent(code)}&app=true`;
@@ -163,23 +220,37 @@ export const WebUnifiedView: React.FC = () => {
       <View style={styles.webWrap}>
         <AnyWebView
           ref={webViewRef}
-          source={{ uri: WEB_URL }}
+          source={INITIAL_SOURCE}
           style={styles.webview}
           injectedJavaScript={INJECTED_SCANNER_BRIDGE}
           onMessage={handleMessage}
           onNavigationStateChange={(nav: any) => {
-            setCanGoBack(Boolean(nav?.canGoBack));
-            setCanGoForward(Boolean(nav?.canGoForward));
+            if (typeof nav?.canGoBack === "boolean") {
+              canGoBackRef.current = nav.canGoBack;
+            }
             if (nav?.url) {
-              setCurrentUrl(nav.url);
+              currentUrlRef.current = nav.url;
               // If user navigated to /scanner on the web app, trigger the real hardware camera
               if (nav.url.includes("/scanner") && !scannerVisible) {
                 setScannerVisible(true);
               }
             }
           }}
-          onLoadStart={() => setLoading(true)}
-          onLoadEnd={() => setLoading(false)}
+          onShouldStartLoadWithRequest={(request: any) => {
+            const url = request?.url || "";
+            if (
+              url.startsWith("tel:") ||
+              url.startsWith("mailto:") ||
+              url.startsWith("whatsapp:") ||
+              url.startsWith("geo:") ||
+              url.startsWith("intent:") ||
+              url.startsWith("maps:")
+            ) {
+              Linking.openURL(url).catch(() => {});
+              return false;
+            }
+            return true;
+          }}
           javaScriptEnabled={true}
           domStorageEnabled={true}
           startInLoadingState={true}
@@ -200,7 +271,7 @@ export const WebUnifiedView: React.FC = () => {
         />
       </View>
 
-      {/* Floating Hardware Camera QR & Barcode Scanner Button */}
+      {/* Floating Hardware Camera QR & Barcode Scanner Button - positioned right above bottom nav */}
       <TouchableOpacity
         style={styles.floatingScannerFab}
         onPress={() => setScannerVisible(true)}
@@ -209,7 +280,7 @@ export const WebUnifiedView: React.FC = () => {
         accessibilityLabel="Open Camera QR Scanner"
       >
         <View style={styles.fabIconWrap}>
-          <QrCode color="#ffffff" size={18} strokeWidth={2.5} />
+          <QrCode color="#ffffff" size={17} strokeWidth={2.5} />
         </View>
         <Text style={styles.floatingScannerText}>QR Scanner</Text>
       </TouchableOpacity>
@@ -241,15 +312,15 @@ const styles = StyleSheet.create({
   },
   floatingScannerFab: {
     position: "absolute",
-    bottom: 24,
-    right: 18,
+    bottom: 88,
+    right: 16,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#7c3aed",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 9,
+    paddingHorizontal: 15,
     borderRadius: 30,
-    gap: 8,
+    gap: 7,
     shadowColor: "#6d28d9",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.45,
@@ -260,9 +331,9 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   fabIconWrap: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: "rgba(255, 255, 255, 0.2)",
     alignItems: "center",
     justifyContent: "center",
@@ -270,7 +341,7 @@ const styles = StyleSheet.create({
   floatingScannerText: {
     color: "#ffffff",
     fontWeight: "800",
-    fontSize: 13,
+    fontSize: 12,
     letterSpacing: 0.2,
   },
   loadingOverlay: {

@@ -1167,3 +1167,19 @@ user_router = APIRouter(tags=["Users"])
 @user_router.get("/users/me", response_model=schemas.User)
 def read_current_user(user: Annotated[User, Depends(get_current_user)]):
     return user
+
+
+@user_router.patch("/users/me", response_model=schemas.User)
+@user_router.put("/users/me", response_model=schemas.User)
+def update_current_user(
+    updates: schemas.UserUpdate,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Session = Depends(get_db)
+):
+    if updates.name is not None and updates.name.strip():
+        user.name = updates.name.strip()
+    if updates.phone_number is not None:
+        user.phone_number = updates.phone_number.strip()
+    db.commit()
+    db.refresh(user)
+    return user

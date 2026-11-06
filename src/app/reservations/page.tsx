@@ -44,13 +44,37 @@ export default function MyReservations() {
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
 
   const loadReservations = async () => {
+    if (!user) {
+      setReservations([]);
+      setOrders([]);
+      setLoading(false);
+      return;
+    }
     try {
       const [resData, orderData] = await Promise.all([
-        getMyReservations(),
-        getMyOrders(),
+        getMyReservations(user.id, user.email),
+        getMyOrders(user.id, user.email),
       ]);
-      setReservations(resData);
-      setOrders(orderData);
+      const myUid = (user.id || "").toLowerCase();
+      const myEmail = (user.email || "").toLowerCase();
+      const userReservations = resData.filter((r) => {
+        const rUid = (r.user_id || "").toLowerCase();
+        const rEmail = ((r as any).customer_email || "").toLowerCase();
+        return (
+          (myUid && rUid === myUid) ||
+          (myEmail && (rUid === myEmail || rEmail === myEmail))
+        );
+      });
+      const userOrders = orderData.filter((o) => {
+        const oUid = (o.customer_id || "").toLowerCase();
+        const oEmail = ((o as any).customer_email || "").toLowerCase();
+        return (
+          (myUid && oUid === myUid) ||
+          (myEmail && (oUid === myEmail || oEmail === myEmail))
+        );
+      });
+      setReservations(userReservations);
+      setOrders(userOrders);
     } catch (err) {
       console.error(err);
     } finally {

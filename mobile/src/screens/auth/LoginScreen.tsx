@@ -1120,8 +1120,10 @@ export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) =>
                         placeholder="10-digit mobile number"
                         placeholderTextColor={Colors.textMuted}
                         value={vendorPhone}
-                        onChangeText={setVendorPhone}
+                        onChangeText={(t) => setVendorPhone(t.replace(/\D/g, ""))}
                         keyboardType="phone-pad"
+                        inputMode="numeric"
+                        maxLength={10}
                       />
                     </View>
                   </View>
@@ -1280,6 +1282,9 @@ export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) =>
                     value={otpCode}
                     onChangeText={(t) => setOtpCode(t.replace(/\D/g, ""))}
                     keyboardType="number-pad"
+                    inputMode="numeric"
+                    textContentType="oneTimeCode"
+                    autoComplete="one-time-code"
                     maxLength={6}
                   />
                 </View>
@@ -1431,6 +1436,9 @@ export const LoginScreen: React.FC<AuthScreenProps> = ({ navigation, route }) =>
                         value={forgotOtp}
                         onChangeText={(t) => setForgotOtp(t.replace(/\D/g, ""))}
                         keyboardType="number-pad"
+                        inputMode="numeric"
+                        textContentType="oneTimeCode"
+                        autoComplete="one-time-code"
                         maxLength={6}
                       />
                     </View>
