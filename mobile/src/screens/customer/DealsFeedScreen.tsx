@@ -52,7 +52,7 @@ export const DealsFeedScreen: React.FC<DealsFeedScreenProps> = ({ navigation }) 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<ProductCategory | "ALL">("ALL");
+  const [category, setCategory] = useState<ProductCategory | "ALL" | "SAVED">("ALL");
   const [recipeMode, setRecipeMode] = useState(false);
   const [selectedProductForAi, setSelectedProductForAi] = useState<ApiProduct | null>(null);
   const [qrScannerVisible, setQrScannerVisible] = useState(false);
@@ -86,9 +86,13 @@ export const DealsFeedScreen: React.FC<DealsFeedScreenProps> = ({ navigation }) 
           setProducts(res.products);
         }
       } else {
-        const params = category !== "ALL" ? { category } : {};
+        const params = category !== "ALL" && category !== "SAVED" ? { category } : {};
         const deals = await getProducts(params);
-        setProducts(deals);
+        if (category === "SAVED") {
+          setProducts(deals.filter((d) => favoriteIds.has(d.id)));
+        } else {
+          setProducts(deals);
+        }
       }
     } catch (err) {
       console.log("Error fetching deals:", err);
@@ -96,7 +100,7 @@ export const DealsFeedScreen: React.FC<DealsFeedScreenProps> = ({ navigation }) 
       setLoading(false);
       setRefreshing(false);
     }
-  }, [query, category, recipeMode]);
+  }, [query, category, recipeMode, favoriteIds]);
 
   const loadFavorites = useCallback(async () => {
     try {

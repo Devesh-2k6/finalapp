@@ -154,3 +154,4 @@ export function notifyFavoritesChanged(favoriteIds: string[]): void {
     );
   } catch {}
 }
+

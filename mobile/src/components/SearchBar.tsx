@@ -4,8 +4,9 @@ import { Search, X, SlidersHorizontal, ChefHat, Sparkles, QrCode } from "lucide-
 import { Colors, Radius, Shadows, Spacing, Typography } from "../theme";
 import type { ProductCategory } from "../types";
 
-const CATEGORIES: { label: string; icon: string; value: ProductCategory | "ALL" }[] = [
+const CATEGORIES: { label: string; icon: string; value: ProductCategory | "ALL" | "SAVED" }[] = [
   { label: "All Deals", icon: "🔥", value: "ALL" },
+  { label: "Saved ❤️", icon: "❤️", value: "SAVED" },
   { label: "Bakery", icon: "🥐", value: "BAKERY" },
   { label: "Dairy", icon: "🥛", value: "DAIRY" },
   { label: "Produce", icon: "🥗", value: "PRODUCE" },
@@ -18,8 +19,8 @@ const CATEGORIES: { label: string; icon: string; value: ProductCategory | "ALL" 
 interface SearchBarProps {
   query: string;
   onChangeQuery: (text: string) => void;
-  selectedCategory: ProductCategory | "ALL";
-  onSelectCategory: (category: ProductCategory | "ALL") => void;
+  selectedCategory: ProductCategory | "ALL" | "SAVED";
+  onSelectCategory: (category: ProductCategory | "ALL" | "SAVED") => void;
   recipeMode: boolean;
   onToggleRecipeMode: () => void;
   onOpenFilters?: () => void;
