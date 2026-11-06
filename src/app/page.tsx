@@ -43,6 +43,12 @@ import type { ApiProduct } from "@/types/product";
 import { getSafeImageUrl } from "@/lib/images";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthenticationContext";
+import { CustomerLocationModal } from "@/components/CustomerLocationModal";
+import {
+  getStoredLocation,
+  setStoredLocation,
+  type CustomerLocation,
+} from "@/lib/customer-location";
 
 // Dynamically import client components
 const HeroMap = dynamic(() => import('@/components/map/HeroMap'), { ssr: false });
@@ -55,6 +61,7 @@ export default function Home() {
   const [locationText, setLocationText] = useState("Chennai, Tamil Nadu");
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
   const [alertEmail, setAlertEmail] = useState("");
   const [alertStatus, setAlertStatus] = useState<"idle" | "loading" | "subscribed">("idle");
   const { triggerConfetti } = useConfetti();
@@ -141,37 +148,46 @@ export default function Home() {
   });
 
   useEffect(() => {
+    // 1. Check saved customer location first
+    const saved = getStoredLocation();
+    if (saved) {
+      setLocationText(saved.city);
+      setGpsCoords({ lat: saved.lat, lng: saved.lng });
+      return;
+    }
+
+    // 2. Default to IP geolocation
     fetchIpGeolocation()
       .then((data) => {
         if (data.city) {
           setLocationText(`${data.city}, ${data.region || "India"}`);
+          setGpsCoords({ lat: data.latitude, lng: data.longitude });
         }
       })
       .catch(() => {});
   }, []);
 
-  // Gap #5 — GPS coordinates are stored and passed to /deals
+  // Listen for real-time location changes
+  useEffect(() => {
+    const handleLocationEvent = (e: any) => {
+      const loc = e.detail as CustomerLocation;
+      if (loc && typeof loc.lat === "number" && typeof loc.lng === "number") {
+        setLocationText(loc.city);
+        setGpsCoords({ lat: loc.lat, lng: loc.lng });
+      }
+    };
+    window.addEventListener("EXPIRYGO_LOCATION_CHANGED", handleLocationEvent);
+    return () => window.removeEventListener("EXPIRYGO_LOCATION_CHANGED", handleLocationEvent);
+  }, []);
+
   const handleLocateMe = () => {
-    setIsLocating(true);
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setIsLocating(false);
-          setGpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          setLocationText("Current GPS Location (Live)");
-        },
-        () => {
-          fetchIpGeolocation()
-            .then((data) => {
-              setIsLocating(false);
-              if (data.city) setLocationText(`${data.city}, ${data.region || "India"}`);
-            })
-            .catch(() => setIsLocating(false));
-        }
-      );
-    } else {
-      setIsLocating(false);
-    }
+    setShowLocationModal(true);
+  };
+
+  const handleSelectLocation = (loc: CustomerLocation) => {
+    setLocationText(loc.city);
+    setGpsCoords({ lat: loc.lat, lng: loc.lng });
+    setStoredLocation(loc);
   };
 
   const handleHeroSearch = (e: React.FormEvent) => {
@@ -181,6 +197,9 @@ export default function Home() {
     if (gpsCoords) {
       params.set("lat", String(gpsCoords.lat));
       params.set("lng", String(gpsCoords.lng));
+      params.set("city", locationText);
+    } else if (locationText.trim()) {
+      params.set("city", locationText.trim());
     }
     router.push(`/deals?${params.toString()}`);
   };
@@ -321,23 +340,29 @@ export default function Home() {
                 className="w-full bg-white dark:bg-gray-900 p-2.5 rounded-2xl border border-purple-200/90 dark:border-gray-800 shadow-[0_12px_40px_rgba(124,58,237,0.08)] flex flex-col sm:flex-row items-stretch gap-2"
               >
                 {/* Location Pill */}
-                <div className="flex items-center gap-2.5 px-3.5 py-3 bg-purple-50/70 dark:bg-gray-800/80 hover:bg-purple-50 rounded-xl border border-purple-100 dark:border-gray-700 text-slate-800 dark:text-gray-200 sm:w-5/12 transition">
-                  <MapPin size={18} className="text-purple-600 shrink-0" />
-                  <input
-                    type="text"
-                    value={locationText}
-                    onChange={(e) => setLocationText(e.target.value)}
-                    className="w-full bg-transparent text-xs sm:text-sm font-bold text-slate-800 dark:text-gray-200 outline-none truncate"
-                    placeholder="Location / Area..."
-                  />
+                <div
+                  onClick={handleLocateMe}
+                  className="flex items-center gap-2.5 px-3.5 py-2.5 bg-purple-50/70 dark:bg-gray-800/80 hover:bg-purple-100/70 dark:hover:bg-gray-800 rounded-xl border border-purple-100 dark:border-gray-700 text-slate-800 dark:text-gray-200 sm:w-5/12 transition cursor-pointer group"
+                >
+                  <MapPin size={18} className="text-purple-600 shrink-0 group-hover:scale-110 transition-transform" />
+                  <div className="w-full min-w-0">
+                    <span className="text-[9px] uppercase font-black text-purple-700/70 dark:text-purple-400/80 tracking-wider block leading-tight">
+                      Location
+                    </span>
+                    <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-gray-100 truncate block">
+                      {locationText || "Choose Location..."}
+                    </span>
+                  </div>
                   <button
                     type="button"
-                    onClick={handleLocateMe}
-                    disabled={isLocating}
-                    title="Auto GPS"
-                    className="text-slate-400 hover:text-purple-600 p-0.5 cursor-pointer shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleLocateMe();
+                    }}
+                    title="Change Location"
+                    className="text-purple-600 hover:text-purple-700 bg-white/80 dark:bg-zinc-800 p-1.5 rounded-lg border border-purple-200/60 dark:border-zinc-700 cursor-pointer shrink-0"
                   >
-                    <Locate size={16} className={isLocating ? "animate-spin text-purple-600" : ""} />
+                    <Locate size={15} />
                   </button>
                 </div>
 
@@ -795,6 +820,16 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      {/* Customer Location Selector Modal */}
+      <CustomerLocationModal
+        isOpen={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        currentCity={locationText}
+        currentLat={gpsCoords?.lat}
+        currentLng={gpsCoords?.lng}
+        onSelectLocation={handleSelectLocation}
+      />
     </div>
   );
 }

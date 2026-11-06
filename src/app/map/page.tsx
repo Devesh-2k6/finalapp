@@ -20,6 +20,12 @@ import { fetchIpGeolocation } from "@/lib/geolocation";
 import { ShopperLayout } from "@/components/layout/ShopperLayout";
 import { ScrollToTop } from "@/components/ui/ScrollToTop";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { CustomerLocationModal } from "@/components/CustomerLocationModal";
+import {
+  getStoredLocation,
+  setStoredLocation,
+  type CustomerLocation,
+} from "@/lib/customer-location";
 
 const MapComponent = dynamic(() => import("@/components/MapComponent"), {
   ssr: false,
@@ -63,9 +69,19 @@ export default function MapDiscovery() {
   const [isLocating, setIsLocating] = useState(false);
   const [mapLayerType, setMapLayerType] = useState<"streets" | "satellite">("streets");
   const [statusToast, setStatusToast] = useState<{ text: string; type: "info" | "success" | "error" } | null>(null);
+  const [showLocationModal, setShowLocationModal] = useState(false);
 
   // Auto-locate user on mount
   useEffect(() => {
+    // 1. Check saved customer location first
+    const saved = getStoredLocation();
+    if (saved) {
+      setUserLat(saved.lat);
+      setUserLng(saved.lng);
+      setCustomCenter([saved.lat, saved.lng]);
+      return;
+    }
+
     if (typeof window !== "undefined" && "geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -85,6 +101,16 @@ export default function MapDiscovery() {
       );
     }
   }, []);
+
+  const handleSelectLocation = (loc: CustomerLocation) => {
+    setUserLat(loc.lat);
+    setUserLng(loc.lng);
+    setCustomCenter([loc.lat, loc.lng]);
+    setSelectedShop(null);
+    setStoredLocation(loc);
+    setStatusToast({ text: `📍 Location set to: ${loc.city}`, type: "success" });
+    setTimeout(() => setStatusToast(null), 4000);
+  };
 
   // Request High-Precision Live Location on Demand
   const handleLocateMe = () => {
@@ -173,8 +199,19 @@ export default function MapDiscovery() {
         if (results && results.length > 0) {
           const targetLat = parseFloat(results[0].lat);
           const targetLng = parseFloat(results[0].lon);
+          const cityName = results[0].display_name.split(",")[0];
           setCustomCenter([targetLat, targetLng]);
-          setStatusToast({ text: `✓ Centered on: ${results[0].display_name.split(",")[0]}`, type: "success" });
+          setUserLat(targetLat);
+          setUserLng(targetLng);
+          setSelectedShop(null);
+          setStoredLocation({
+            lat: targetLat,
+            lng: targetLng,
+            city: cityName,
+            address: results[0].display_name,
+            source: "manual",
+          });
+          setStatusToast({ text: `✓ Location updated to: ${cityName}`, type: "success" });
           setTimeout(() => setStatusToast(null), 4000);
         }
       }
@@ -285,6 +322,16 @@ export default function MapDiscovery() {
             <Eye size={18} />
           </button>
 
+          {/* Change / Search Manual Location Button */}
+          <button
+            type="button"
+            onClick={() => setShowLocationModal(true)}
+            title="Search or pick location"
+            className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-md p-2.5 sm:p-3 rounded-2xl shadow-xl border border-purple-100/80 dark:border-gray-800 transition hover:scale-105 pointer-events-auto text-purple-600 hover:text-purple-700 cursor-pointer shrink-0"
+          >
+            <MapPin size={18} />
+          </button>
+
           {/* Live Locate Me GPS Button */}
           <button
             type="button"
@@ -305,9 +352,19 @@ export default function MapDiscovery() {
               type="button"
               onClick={() => {
                 setCustomCenter([city.lat, city.lng]);
+                setUserLat(city.lat);
+                setUserLng(city.lng);
                 setSelectedShop(null);
+                setStoredLocation({
+                  lat: city.lat,
+                  lng: city.lng,
+                  city: city.name,
+                  source: "manual",
+                });
+                setStatusToast({ text: `📍 Location set to: ${city.name}`, type: "success" });
+                setTimeout(() => setStatusToast(null), 3500);
               }}
-              className="px-3 py-1 rounded-xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border border-white/60 dark:border-gray-800 shadow-md text-xs font-bold text-slate-700 dark:text-gray-200 hover:text-orange-600 transition shrink-0 cursor-pointer"
+              className="px-3 py-1 rounded-xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border border-white/60 dark:border-gray-800 shadow-md text-xs font-bold text-slate-700 dark:text-gray-200 hover:text-purple-600 transition shrink-0 cursor-pointer"
             >
               📍 {city.name}
             </button>
@@ -457,6 +514,16 @@ export default function MapDiscovery() {
         <span>Surplus Store</span>
       </div>
       <ScrollToTop />
+
+      {/* Customer Location Selector Modal */}
+      <CustomerLocationModal
+        isOpen={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        currentCity={statusToast?.text?.replace("📍 Location set to: ", "").replace("✓ Location updated to: ", "") || undefined}
+        currentLat={userLat ?? undefined}
+        currentLng={userLng ?? undefined}
+        onSelectLocation={handleSelectLocation}
+      />
     </div>
     </ShopperLayout>
   );

@@ -176,6 +176,13 @@ export default function ProfilePage() {
                   </div>
                   <ChevronLeft size={16} className="rotate-180 text-gray-400" />
                 </Link>
+                <Link href="/wishlist" className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition border-b border-gray-100 dark:border-gray-700 text-left">
+                  <div className="flex items-center gap-4">
+                    <Heart size={20} className="text-rose-500 fill-rose-500/20" />
+                    <span className="font-semibold text-gray-900 dark:text-white text-sm">My Wishlist & Saved Deals</span>
+                  </div>
+                  <ChevronLeft size={16} className="rotate-180 text-gray-400" />
+                </Link>
                 <Link href="/notifications" className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition border-b border-gray-100 dark:border-gray-700 text-left">
                   <div className="flex items-center gap-4">
                     <Bell size={20} className="text-blue-500" />

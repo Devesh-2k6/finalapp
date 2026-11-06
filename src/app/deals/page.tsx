@@ -74,6 +74,20 @@ import { LiveDealTicker } from "@/components/ui/LiveDealTicker";
 import type { ProductCategory, ApiProduct, ApiOrder } from "@/types/product";
 import { fetchIpGeolocation } from "@/lib/geolocation";
 import { useToast } from "@/components/ui/Toast";
+import { CustomerLocationModal } from "@/components/CustomerLocationModal";
+import {
+  getStoredLocation,
+  setStoredLocation,
+  type CustomerLocation,
+} from "@/lib/customer-location";
+import {
+  getStoredFavoriteIds,
+  getStoredSavedProducts,
+  storeSavedProduct,
+  removeStoredSavedProduct,
+  syncSavedProductsWithFavorites,
+  FAVORITES_CHANGED_EVENT,
+} from "@/lib/favorites";
 
 const FILTERS = ["All", "AI Recommended ✨", "Saved ❤️", "BAKERY", "DAIRY", "PRODUCE", "MEAT", "PANTRY", "PREPARED_FOOD", "OTHER"];
 
@@ -140,12 +154,14 @@ export default function CustomerDealsPage() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [lat, setLat] = useState<number | undefined>();
   const [lng, setLng] = useState<number | undefined>();
-  const [locationSource, setLocationSource] = useState<"gps" | "ip" | "none">("none");
+  const [locationSource, setLocationSource] = useState<"gps" | "manual" | "ip" | "none">("none");
   const [locationCity, setLocationCity] = useState<string | null>(null);
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
   const [ignoreDistance, setIgnoreDistance] = useState(false);
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [favorites, setFavorites] = useState<Set<string>>(() => new Set(getStoredFavoriteIds()));
+  const [savedProductsCache, setSavedProductsCache] = useState<ApiProduct[]>(() => getStoredSavedProducts());
   const [following, setFollowing] = useState<Set<string>>(new Set());
 
   // Deep search states
@@ -221,7 +237,7 @@ export default function CustomerDealsPage() {
   const { products: standardProducts, status: standardStatus, errorMessage: standardErrorMessage, refetch: refetchStandard } = useProducts({ 
     hideExpired: true,
     q: search || undefined,
-    category: (activeFilter === "All" || activeFilter === "AI Recommended ✨") ? undefined : (activeFilter as ProductCategory),
+    category: (activeFilter === "All" || activeFilter === "AI Recommended ✨" || activeFilter === "Saved ❤️") ? undefined : (activeFilter as ProductCategory),
     lat: ignoreDistance ? undefined : lat,
     lng: ignoreDistance ? undefined : lng,
     radius_km: ignoreDistance ? undefined : (lat ? 50 : undefined)
@@ -250,27 +266,15 @@ export default function CustomerDealsPage() {
 
   // Fetch favorites on load with optimistic local cache
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem("EXPIRYGO_FAVORITES");
-        if (cached) {
-          const arr = JSON.parse(cached);
-          if (Array.isArray(arr)) {
-            setFavorites(new Set(arr));
-          }
-        }
-      } catch {}
-    }
+    setFavorites(new Set(getStoredFavoriteIds()));
+    setSavedProductsCache(getStoredSavedProducts());
+
     if (user) {
       getFavorites().then(favs => {
         if (Array.isArray(favs)) {
-          setFavorites(prev => {
-            const combined = new Set([...Array.from(prev), ...favs.map(f => f.product_id)]);
-            try {
-              localStorage.setItem("EXPIRYGO_FAVORITES", JSON.stringify(Array.from(combined)));
-            } catch {}
-            return combined;
-          });
+          const synced = syncSavedProductsWithFavorites(favs);
+          setSavedProductsCache(synced);
+          setFavorites(new Set(getStoredFavoriteIds()));
         }
       }).catch(() => {});
       
@@ -281,6 +285,16 @@ export default function CustomerDealsPage() {
       }).catch(() => {});
     }
   }, [user]);
+
+  // Synchronize favorites changes across pages in real time
+  useEffect(() => {
+    const handleFavChange = () => {
+      setFavorites(new Set(getStoredFavoriteIds()));
+      setSavedProductsCache(getStoredSavedProducts());
+    };
+    window.addEventListener(FAVORITES_CHANGED_EVENT, handleFavChange);
+    return () => window.removeEventListener(FAVORITES_CHANGED_EVENT, handleFavChange);
+  }, []);
 
   // GPS-First Geolocation with IP Geolocation Fallback
   const detectLocation = useCallback((isManualClick = false) => {
@@ -329,24 +343,93 @@ export default function CustomerDealsPage() {
   }, []);
 
   useEffect(() => {
+    // 1. Read URL query parameters first (e.g. from Hero Search or shared link)
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const qParam = urlParams.get("q");
+      if (qParam && qParam.trim()) {
+        setSearch(qParam.trim());
+      }
+
+      const urlLat = urlParams.get("lat");
+      const urlLng = urlParams.get("lng");
+      const urlCity = urlParams.get("city") || urlParams.get("location");
+      if (urlLat && urlLng) {
+        const latNum = parseFloat(urlLat);
+        const lngNum = parseFloat(urlLng);
+        if (!isNaN(latNum) && !isNaN(lngNum)) {
+          setLat(latNum);
+          setLng(lngNum);
+          setLocationCity(urlCity || "Selected Area");
+          setLocationSource("manual");
+          setStoredLocation({
+            lat: latNum,
+            lng: lngNum,
+            city: urlCity || "Selected Area",
+            source: "manual",
+          });
+          return;
+        }
+      }
+
+      // 2. Check saved customer location from local storage
+      const saved = getStoredLocation();
+      if (saved) {
+        setLat(saved.lat);
+        setLng(saved.lng);
+        setLocationCity(saved.city);
+        setLocationSource(saved.source);
+        return;
+      }
+    }
+
+    // 3. Fallback: auto-detect via device GPS or IP
     detectLocation(false);
   }, [detectLocation]);
 
+  // Synchronize location updates across tabs and pages in real-time
+  useEffect(() => {
+    const handleLocationEvent = (e: any) => {
+      const loc = e.detail as CustomerLocation;
+      if (loc && typeof loc.lat === "number" && typeof loc.lng === "number") {
+        setLat(loc.lat);
+        setLng(loc.lng);
+        setLocationCity(loc.city);
+        setLocationSource(loc.source);
+      }
+    };
+    window.addEventListener("EXPIRYGO_LOCATION_CHANGED", handleLocationEvent);
+    return () => window.removeEventListener("EXPIRYGO_LOCATION_CHANGED", handleLocationEvent);
+  }, []);
+
   const handleToggleFavorite = async (id: string, isFav: boolean, e: React.MouseEvent) => {
     e.preventDefault();
-    // Instant optimistic toggle for silky-smooth UI response
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (isFav) {
+    if (isFav) {
+      removeStoredSavedProduct(id);
+      setFavorites((prev) => {
+        const next = new Set(prev);
         next.delete(id);
-      } else {
-        next.add(id);
+        return next;
+      });
+      setSavedProductsCache((prev) => prev.filter((p) => p.id !== id));
+    } else {
+      const targetProd =
+        standardProducts.find((p) => p.id === id) ||
+        savedProductsCache.find((p) => p.id === id);
+      if (targetProd) {
+        storeSavedProduct(targetProd);
+        setSavedProductsCache((prev) => {
+          const map = new Map(prev.map((p) => [p.id, p]));
+          map.set(targetProd.id, targetProd);
+          return Array.from(map.values());
+        });
       }
-      try {
-        localStorage.setItem("EXPIRYGO_FAVORITES", JSON.stringify(Array.from(next)));
-      } catch {}
-      return next;
-    });
+      setFavorites((prev) => {
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+      });
+    }
 
     try {
       if (isFav) {
@@ -356,7 +439,6 @@ export default function CustomerDealsPage() {
       }
     } catch (err) {
       console.warn("Favorite API background sync:", err);
-      // Keep optimistic state intact so favorite stays toggled without an error toast
     }
   };
 
@@ -628,7 +710,16 @@ export default function CustomerDealsPage() {
   };
 
   const handleUseLocation = () => {
-    detectLocation(true);
+    setShowLocationModal(true);
+  };
+
+  const handleSelectLocation = (loc: CustomerLocation) => {
+    setLat(loc.lat);
+    setLng(loc.lng);
+    setLocationCity(loc.city);
+    setLocationSource(loc.source);
+    setStoredLocation(loc);
+    toast.success(`Location set to ${loc.city}`, "Showing surplus deals in your selected area.");
   };
 
   const isAiRecommended = activeFilter === "AI Recommended ✨";
@@ -648,15 +739,25 @@ export default function CustomerDealsPage() {
     isAiRecommended
       ? (recommendedProducts.length > 0 ? recommendedProducts : aiRankedStandard)
       : isSavedFilter
-      ? (isDeepSearchActive && deepSearchData
-        ? (deepSearchData.recipe_mode ? deepSearchData.matched_deals : deepSearchData.products)
-        : standardProducts).filter((p) => favorites.has(p.id))
+      ? (() => {
+          const map = new Map<string, ApiProduct>();
+          savedProductsCache.forEach((p) => {
+            if (p && p.id && favorites.has(p.id)) map.set(p.id, p);
+          });
+          standardProducts.forEach((p) => {
+            if (p && p.id && favorites.has(p.id)) map.set(p.id, p);
+          });
+          return Array.from(map.values());
+        })()
       : isDeepSearchActive && deepSearchData
       ? (deepSearchData.recipe_mode ? deepSearchData.matched_deals : deepSearchData.products)
       : standardProducts
   ) as ApiProduct[];
 
   const displayProducts = rawProducts.filter((product: ApiProduct) => {
+    if (isSavedFilter) {
+      return true;
+    }
     if (isAiRecommended) {
       if (marketMode === "HOTEL") {
         return (
@@ -691,6 +792,8 @@ export default function CustomerDealsPage() {
   
   if (isAiRecommended) {
     displayStatus = loadingRecommended && recommendedProducts.length === 0 ? "loading" : (displayProducts.length > 0 ? "success" : "empty");
+  } else if (isSavedFilter) {
+    displayStatus = displayProducts.length > 0 ? "success" : "empty";
   } else if (isDeepSearchActive) {
     if (deepSearchLoading && !deepSearchData) displayStatus = "loading";
     else if (deepSearchError) {
@@ -743,6 +846,20 @@ export default function CustomerDealsPage() {
                 >
                   <QrCode size={13} className="text-zinc-500" />
                   <span className="hidden sm:inline">Pickups</span>
+                </Link>
+
+                <Link
+                  href="/wishlist"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-100 hover:bg-zinc-200/70 dark:bg-zinc-800/70 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-semibold transition border border-zinc-200/60 dark:border-zinc-700/60"
+                  title="My Wishlist & Saved Deals"
+                >
+                  <Heart size={13} className={favorites.size > 0 ? "fill-rose-500 text-rose-500" : "text-zinc-500"} />
+                  <span className="hidden sm:inline">Wishlist</span>
+                  {favorites.size > 0 && (
+                    <span className="px-1.5 py-0.2 text-[9px] font-black rounded-full bg-rose-500 text-white leading-none">
+                      {favorites.size}
+                    </span>
+                  )}
                 </Link>
 
                 <Link
@@ -1503,6 +1620,33 @@ export default function CustomerDealsPage() {
 
         {showList && (
           <div className="space-y-4 mt-4">
+            {isSavedFilter && (
+              <div className="bg-gradient-to-r from-rose-50 to-pink-50 dark:from-rose-950/40 dark:to-pink-950/30 border border-rose-200 dark:border-rose-900/60 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center shadow-sm shrink-0">
+                    <Heart size={20} className="fill-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-rose-950 dark:text-rose-100 flex items-center gap-2">
+                      <span>Saved Deals Collection</span>
+                      <span className="text-[10px] bg-rose-500 text-white font-bold px-2 py-0.5 rounded-full">
+                        {displayProducts.length} {displayProducts.length === 1 ? "Deal" : "Deals"}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-rose-700 dark:text-rose-300">
+                      Tap ❤️ on any card to remove, or visit your dedicated wishlist page.
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href="/wishlist"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition shrink-0 shadow-sm shadow-rose-600/20 active:scale-95"
+                >
+                  <span>Open Full Wishlist</span>
+                  <ArrowRight size={14} />
+                </Link>
+              </div>
+            )}
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
               {displayProducts.length} deal{displayProducts.length !== 1 ? "s" : ""} available
             </p>
@@ -2340,6 +2484,16 @@ export default function CustomerDealsPage() {
             </motion.button>
           )}
         </AnimatePresence>
+
+        {/* Customer Location Selector Modal */}
+        <CustomerLocationModal
+          isOpen={showLocationModal}
+          onClose={() => setShowLocationModal(false)}
+          currentCity={locationCity}
+          currentLat={lat}
+          currentLng={lng}
+          onSelectLocation={handleSelectLocation}
+        />
       </div>
     </ShopperLayout>
   );
