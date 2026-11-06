@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { WebView } from "react-native-webview";
+import * as Location from "expo-location";
 import { UniversalScannerModal, type ScannedBarcodeResult } from "../components/UniversalScannerModal";
 import { broadcastScannerResult } from "../services/products";
 
@@ -69,6 +70,32 @@ const INJECTED_SCANNER_BRIDGE = `
     window.openExpoGoScanner = function() {
       window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'OPEN_CAMERA_SCANNER' }));
     };
+
+    // Forward web geolocation requests to Expo Go native location bridge
+    if (navigator && navigator.geolocation) {
+      var origGeo = navigator.geolocation.getCurrentPosition ? navigator.geolocation.getCurrentPosition.bind(navigator.geolocation) : null;
+      navigator.geolocation.getCurrentPosition = function(success, error, options) {
+        if (window.ReactNativeWebView) {
+          window._pendingGeoSuccess = success;
+          window._pendingGeoError = error;
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'REQUEST_DEVICE_LOCATION' }));
+          setTimeout(function() {
+            if (window._pendingGeoError) {
+              var errFn = window._pendingGeoError;
+              window._pendingGeoError = null;
+              window._pendingGeoSuccess = null;
+              if (origGeo) {
+                try { origGeo(success, error, options); } catch(e) { errFn({ code: 3, message: 'Native GPS lookup timeout' }); }
+              } else {
+                errFn({ code: 3, message: 'Native GPS lookup timeout' });
+              }
+            }
+          }, 7000);
+          return;
+        }
+        if (origGeo) origGeo(success, error, options);
+      };
+    }
   })();
   true;
 `;
@@ -115,12 +142,113 @@ export const WebUnifiedView: React.FC = () => {
     }
   }, [scannerVisible]);
 
+  // Request native phone GPS and bridge it into the WebView
+  const requestAndInjectDeviceLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        webViewRef.current?.injectJavaScript(`
+          try {
+            if (window._pendingGeoError) {
+              window._pendingGeoError({ code: 1, message: "Device location permission denied" });
+              window._pendingGeoError = null;
+              window._pendingGeoSuccess = null;
+            }
+          } catch(e) {}
+          true;
+        `);
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const lat = loc.coords.latitude;
+      const lng = loc.coords.longitude;
+      let city = "My GPS Location";
+      let address = `Coordinates: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+
+      try {
+        const geo = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+        if (geo && geo[0]) {
+          const item = geo[0];
+          city = item.city || item.subregion || item.district || item.name || city;
+          const parts = [item.name, item.street, item.city, item.region, item.postalCode].filter(Boolean);
+          if (parts.length > 0) {
+            address = parts.join(", ");
+          }
+        }
+      } catch (e) {
+        // Reverse geocoding optional
+      }
+
+      const payload = {
+        lat,
+        lng,
+        city,
+        address,
+        source: "gps",
+        timestamp: Date.now(),
+      };
+
+      const payloadStr = JSON.stringify(payload);
+
+      webViewRef.current?.injectJavaScript(`
+        try {
+          var payload = ${payloadStr};
+          localStorage.setItem("EXPIRYGO_CUSTOMER_LOCATION", JSON.stringify(payload));
+          window.dispatchEvent(new CustomEvent("EXPIRYGO_LOCATION_CHANGED", { detail: payload }));
+          if (window._pendingGeoSuccess) {
+            window._pendingGeoSuccess({
+              coords: {
+                latitude: payload.lat,
+                longitude: payload.lng,
+                accuracy: 10,
+                altitude: null,
+                altitudeAccuracy: null,
+                heading: null,
+                speed: null
+              },
+              timestamp: Date.now()
+            });
+            window._pendingGeoSuccess = null;
+            window._pendingGeoError = null;
+          }
+        } catch(e) {}
+        true;
+      `);
+    } catch (err) {
+      console.warn("Native location error:", err);
+      webViewRef.current?.injectJavaScript(`
+        try {
+          if (window._pendingGeoError) {
+            window._pendingGeoError({ code: 2, message: "Device GPS unavailable" });
+            window._pendingGeoError = null;
+            window._pendingGeoSuccess = null;
+          }
+        } catch(e) {}
+        true;
+      `);
+    }
+  };
+
+  // Proactively fetch device location shortly after webview mounts
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void requestAndInjectDeviceLocation();
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Handle messages from web page
   const handleMessage = (event: any) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
       if (data.type === "OPEN_CAMERA_SCANNER") {
         setScannerVisible(true);
+      } else if (data.type === "REQUEST_DEVICE_LOCATION") {
+        void requestAndInjectDeviceLocation();
       } else if (data.type === "NAV_STATE_CHANGE") {
         if (data.url) currentUrlRef.current = data.url;
         if (typeof data.canGoBack === "boolean") {

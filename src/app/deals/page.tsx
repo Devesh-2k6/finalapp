@@ -38,6 +38,7 @@ import {
   Plus,
   Minus,
   Building,
+  Building2,
   Home,
   Lock,
   Smartphone,
@@ -158,6 +159,7 @@ export default function CustomerDealsPage() {
   const [locationCity, setLocationCity] = useState<string | null>(null);
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const [dismissApproxBanner, setDismissApproxBanner] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [ignoreDistance, setIgnoreDistance] = useState(false);
   const [favorites, setFavorites] = useState<Set<string>>(() => new Set(getStoredFavoriteIds()));
@@ -299,18 +301,56 @@ export default function CustomerDealsPage() {
   // GPS-First Geolocation with IP Geolocation Fallback
   const detectLocation = useCallback((isManualClick = false) => {
     setIsLocating(true);
+
+    // If running in Expo Go WebView, bridge request to native phone GPS directly
+    if (typeof window !== "undefined" && (window as any).ReactNativeWebView) {
+      try {
+        (window as any).ReactNativeWebView.postMessage(
+          JSON.stringify({ type: "REQUEST_DEVICE_LOCATION" })
+        );
+      } catch {}
+    }
+
+    // Safety timeout: Ensure button never stays permanently stuck in "Locating..."
+    const safetyTimeout = setTimeout(() => {
+      setIsLocating(false);
+    }, 4500);
+
     if (typeof window !== "undefined" && "geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          clearTimeout(safetyTimeout);
           setLat(pos.coords.latitude);
           setLng(pos.coords.longitude);
           setLocationSource("gps");
           setLocationPermissionDenied(false);
           setIsLocating(false);
+          setDismissApproxBanner(true);
+          setStoredLocation({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            city: "Live GPS Location",
+            source: "gps",
+          });
         },
         (err) => {
+          clearTimeout(safetyTimeout);
           console.warn("GPS lookup was denied or timed out:", err);
           setLocationPermissionDenied(true);
+          setIsLocating(false);
+
+          // If the user explicitly clicked GPS, don't force coarse IP; show city selection modal
+          if (isManualClick) {
+            setShowLocationModal(true);
+            return;
+          }
+
+          // In background, do NOT overwrite if user previously chose a manual location
+          const saved = getStoredLocation();
+          if (saved && saved.source === "manual") {
+            return;
+          }
+
           // Fall back to coarse IP geolocation
           fetchIpGeolocation()
             .then((data) => {
@@ -327,9 +367,15 @@ export default function CustomerDealsPage() {
               setIsLocating(false);
             });
         },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 }
       );
     } else {
+      clearTimeout(safetyTimeout);
+      setIsLocating(false);
+      if (isManualClick) {
+        setShowLocationModal(true);
+        return;
+      }
       fetchIpGeolocation()
         .then((data) => {
           setLat(data.latitude);
@@ -719,6 +765,8 @@ export default function CustomerDealsPage() {
     setLocationCity(loc.city);
     setLocationSource(loc.source);
     setStoredLocation(loc);
+    setDismissApproxBanner(true);
+    setIsLocating(false);
     toast.success(`Location set to ${loc.city}`, "Showing surplus deals in your selected area.");
   };
 
@@ -826,7 +874,6 @@ export default function CustomerDealsPage() {
               <button
                 type="button"
                 onClick={handleUseLocation}
-                disabled={isLocating}
                 className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-100 hover:bg-zinc-200/70 dark:bg-zinc-800/70 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 text-xs font-semibold transition border border-zinc-200/60 dark:border-zinc-700/60 cursor-pointer"
               >
                 <MapPin size={13} className="text-emerald-500 shrink-0" />
@@ -1250,11 +1297,11 @@ export default function CustomerDealsPage() {
         </div>
 
         {/* Location Required / Coarse IP Geolocation Hint */}
-        {locationSource === "ip" && (
+        {locationSource === "ip" && !dismissApproxBanner && (
           <motion.div
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/30 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs"
+            className="bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/30 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
           >
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
@@ -1269,14 +1316,33 @@ export default function CustomerDealsPage() {
                 </p>
               </div>
             </div>
-            <button
-              onClick={handleUseLocation}
-              disabled={isLocating}
-              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] shrink-0 transition shadow-sm cursor-pointer disabled:opacity-50 flex items-center gap-1"
-            >
-              {isLocating ? <Loader2 size={12} className="animate-spin" /> : <Navigation size={12} />}
-              <span>{isLocating ? "Locating..." : "Enable GPS"}</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setShowLocationModal(true)}
+                className="px-3 py-1.5 rounded-xl bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-white text-white dark:text-zinc-900 font-bold text-[11px] shrink-0 transition shadow-sm cursor-pointer flex items-center gap-1.5"
+              >
+                <Building2 size={12} />
+                <span>Change City</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => detectLocation(true)}
+                disabled={isLocating}
+                className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] shrink-0 transition shadow-sm cursor-pointer disabled:opacity-50 flex items-center gap-1"
+              >
+                {isLocating ? <Loader2 size={12} className="animate-spin" /> : <Navigation size={12} />}
+                <span>{isLocating ? "Locating..." : "Use GPS"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDismissApproxBanner(true)}
+                className="p-1.5 rounded-xl hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 transition cursor-pointer"
+                aria-label="Dismiss approximate location banner"
+              >
+                <X size={15} />
+              </button>
+            </div>
           </motion.div>
         )}
 

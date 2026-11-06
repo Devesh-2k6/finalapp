@@ -42,7 +42,30 @@ export function CustomerLocationModal({
   const [searchResults, setSearchResults] = useState<CustomerLocation[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLocatingGps, setIsLocatingGps] = useState(false);
+  const [gpsStatusMessage, setGpsStatusMessage] = useState<string | null>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear transient status message when modal reopens
+  useEffect(() => {
+    if (isOpen) {
+      setGpsStatusMessage(null);
+    }
+  }, [isOpen]);
+
+  // Listen for real-time location changes injected from native Expo Go
+  useEffect(() => {
+    const handler = (e: any) => {
+      const loc = e.detail as CustomerLocation;
+      if (loc && typeof loc.lat === "number" && typeof loc.lng === "number") {
+        setIsLocatingGps(false);
+        if (loc.source === "gps") {
+          handleSelect(loc);
+        }
+      }
+    };
+    window.addEventListener("EXPIRYGO_LOCATION_CHANGED", handler);
+    return () => window.removeEventListener("EXPIRYGO_LOCATION_CHANGED", handler);
+  }, []);
 
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.trim().length < 2) {
@@ -77,10 +100,27 @@ export function CustomerLocationModal({
   };
 
   const handleDetectGps = () => {
+    setGpsStatusMessage(null);
     setIsLocatingGps(true);
+
+    // If running inside React Native WebView (Expo Go), trigger native hardware GPS directly
+    if (typeof window !== "undefined" && (window as any).ReactNativeWebView) {
+      try {
+        (window as any).ReactNativeWebView.postMessage(
+          JSON.stringify({ type: "REQUEST_DEVICE_LOCATION" })
+        );
+      } catch {}
+    }
+
+    const safetyTimer = setTimeout(() => {
+      setIsLocatingGps(false);
+      setGpsStatusMessage("GPS detection timed out. Please choose your city below or search your area.");
+    }, 6500);
+
     if (typeof window !== "undefined" && "geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
+          clearTimeout(safetyTimer);
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
           let city = "My Current Location";
@@ -120,37 +160,18 @@ export function CustomerLocationModal({
             source: "gps",
           });
         },
-        async () => {
-          // GPS failed or denied, fall back to IP Geolocation
-          try {
-            const ipData = await fetchIpGeolocation();
-            setIsLocatingGps(false);
-            handleSelect({
-              lat: ipData.latitude,
-              lng: ipData.longitude,
-              city: `${ipData.city || "Area"}, ${ipData.region || "India"}`,
-              address: `${ipData.city || ""}, ${ipData.region || ""}, ${ipData.country_name || ""}`.trim(),
-              source: "ip",
-            });
-          } catch {
-            setIsLocatingGps(false);
-          }
+        (err) => {
+          clearTimeout(safetyTimer);
+          setIsLocatingGps(false);
+          console.warn("GPS error:", err);
+          setGpsStatusMessage("GPS permission not granted or location unavailable. Please select your city below.");
         },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
       );
     } else {
-      fetchIpGeolocation()
-        .then((ipData) => {
-          setIsLocatingGps(false);
-          handleSelect({
-            lat: ipData.latitude,
-            lng: ipData.longitude,
-            city: `${ipData.city || "Area"}, ${ipData.region || "India"}`,
-            address: `${ipData.city || ""}, ${ipData.region || ""}`,
-            source: "ip",
-          });
-        })
-        .catch(() => setIsLocatingGps(false));
+      clearTimeout(safetyTimer);
+      setIsLocatingGps(false);
+      setGpsStatusMessage("Geolocation is not supported. Please select your city below.");
     }
   };
 
@@ -252,6 +273,28 @@ export function CustomerLocationModal({
               Detect GPS
             </span>
           </button>
+
+          {/* GPS Status / Guidance Message */}
+          {gpsStatusMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-3 p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between gap-2 shadow-xs"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <Navigation size={14} className="text-amber-600 shrink-0" />
+                <span className="font-semibold text-[11px] leading-snug">{gpsStatusMessage}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGpsStatusMessage(null)}
+                className="p-1 hover:bg-amber-200/50 dark:hover:bg-amber-800/50 rounded-lg shrink-0 text-amber-700 dark:text-amber-300"
+                aria-label="Dismiss message"
+              >
+                <X size={13} />
+              </button>
+            </motion.div>
+          )}
 
           {/* Search Results List or Popular Cities */}
           <div className="mt-4 flex-1 overflow-y-auto pr-1 space-y-3.5 scrollbar-thin">
